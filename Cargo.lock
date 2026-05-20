@@ -41,7 +41,6 @@ dependencies = [
  "ldap3",
  "log",
  "oxicode",
- "quick-xml",
  "regex",
  "serde",
  "serde-saphyr",
@@ -1439,11 +1438,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "oxiarc-core"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c3a93341d720329f503b2743970f11695ac25dc0661ccc94cb43e077545e23a"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
+name = "oxiarc-zstd"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "843bcf00f00acaa23607a0feba6713951889c9d52233971c59f77cab5ccc9a9e"
+dependencies = [
+ "oxiarc-core",
+]
+
+[[package]]
 name = "oxicode"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3df1649f1e500894e21dd64342c8552778e8a67e7e615bb47e2bc1cf8551d28e"
 dependencies = [
+ "oxiarc-zstd",
  "oxicode_derive",
  "serde",
 ]
@@ -1581,17 +1599,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "quick-xml"
-version = "0.40.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2474bd2e5029e7ccb6abb2ba48cf2383a333851dedf495901544281590c7da7f"
-dependencies = [
- "encoding_rs",
- "memchr",
- "tokio",
 ]
 
 [[package]]

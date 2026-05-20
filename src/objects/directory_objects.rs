@@ -1,4 +1,5 @@
 use crate::{objects::attribute::SchemaEntry, storage::attributes::AttributeControlSet};
+use oxicode::compression::{Compression, compress, decompress};
 use oxicode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
@@ -118,6 +119,24 @@ fn compute_hash(
     }
     let result = hasher.finalize();
     hex::encode_upper(result)
+}
+
+// need to store the .bin file as BincodeObjectBuffer<DirectoryObject>
+
+pub fn save_directory_objects_to_bin_file(
+    objects: &[DirectoryObject],
+    path: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let owned_objects: Vec<DirectoryObject> = objects.to_vec();
+    oxicode::encode_to_file(&owned_objects, path)?;
+    Ok(())
+}
+
+pub fn read_directory_objects_from_bin_file(
+    path: &std::path::Path,
+) -> Result<Vec<DirectoryObject>, Box<dyn std::error::Error>> {
+    let objects: Vec<DirectoryObject> = oxicode::decode_from_file(path)?;
+    Ok(objects)
 }
 
 #[derive(Default)]

@@ -2,7 +2,7 @@ use crate::{
     config::app::AppConfig,
     objects::{
         attribute::SchemaEntry,
-        directory_objects::{ADResults, DirectoryObject},
+        directory_objects::{ADResults, DirectoryObject, save_directory_objects_to_bin_file},
     },
     storage::{EntrySource, Storage, attributes::build_attribute_control_sets},
     utilities::banner::progress_bar,
@@ -17,6 +17,7 @@ use oxicode::{Decode, Encode};
 use serde_json::json;
 use std::collections::HashMap;
 use std::error::Error;
+use std::path::Path;
 use std::process;
 #[derive(Clone, Debug)]
 pub struct LdapOptions {
@@ -147,7 +148,15 @@ pub async fn ldap_search<S: Storage<LdapSearchEntry>>(
                 show_deactivated_link_ctrl.to_owned(),
             ]);
 
-            info!("Ldap filter : {}", options.ldap_filter.as_deref().unwrap_or("(objectClass=*)").bold().green());
+            info!(
+                "Ldap filter : {}",
+                options
+                    .ldap_filter
+                    .as_deref()
+                    .unwrap_or("(objectClass=*)")
+                    .bold()
+                    .green()
+            );
             let _s_filter = options.ldap_filter.as_deref().unwrap_or("(objectClass=*)");
 
             // Every 999 max value in ldap response (err 4 ldap)
@@ -468,10 +477,13 @@ pub fn get_type(result: &SearchEntry) -> std::result::Result<Type, Type> {
 }
 pub async fn prepare_results_from_source<S: EntrySource>(
     source: S,
-    config: &AppConfig,
+    domain: &str,
+    export_path: &Path,
+    source_output_path: &Path,
     total_objects: Option<usize>,
 ) -> Result<ADResults, Box<dyn std::error::Error>> {
-    let mut ad_results = parse_result_type_from_source(config, source, total_objects)?;
+    let mut ad_results =
+        parse_result_type_from_source(domain, export_path,source_output_path, source, total_objects)?;
 
     // Functions to replace and add missing values
     // check_all_result(
@@ -505,13 +517,15 @@ pub async fn prepare_results_from_source<S: EntrySource>(
 // for `total_objects`, the total number of objects may not be known if the ldap query was never run
 // (e.g run was resumed from cached results)
 pub fn parse_result_type_from_source(
-    config: &AppConfig,
+    domain: &str,
+    export_path: &Path,
+    schema_output_path: &Path,
     source: impl EntrySource,
     total_objects: Option<usize>,
 ) -> Result<ADResults, Box<dyn Error>> {
     let mut results = ADResults::default();
     // Domain name
-    let domain = &config.domain;
+    let domain = domain;
 
     // Needed for progress bar stats
     let pb = ProgressBar::new(1);
@@ -548,9 +562,8 @@ pub fn parse_result_type_from_source(
     );
     // build attribute control sets for later use in ACL parsing and value parsing
     // construct config.paths.scenarios_directory + "/schema_attributes.yaml"
-    let schema_output_path =
-        std::path::Path::new(&config.paths.scenarios_directory).join("schema_attributes.yaml");
-    let attribute_control_set = build_attribute_control_sets(&schema_entries, &schema_output_path);
+
+    let attribute_control_set = build_attribute_control_sets(&schema_entries, schema_output_path);
     // let (schema_map, property_set_map) = build_maps(schema_entries);
     // init_maps(schema_map, property_set_map);
     let dn_sid = &mut results.mappings.dn_sid;
@@ -581,7 +594,8 @@ pub fn parse_result_type_from_source(
             );
         }
     }
-
+    // if there are directory objects, write them to file
+    save_directory_objects_to_bin_file(&results.directory_objects, export_path)?;
     pb.finish_and_clear();
     log::info!("Parsing LDAP objects finished!");
     Ok(results)

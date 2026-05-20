@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub domain: String,
+    pub hostname: String,
     #[serde(default)]
     pub paths: PathsConfig,
     #[serde(default)]
     pub logging: LoggingConfig,
-    pub ldap: LdapConfig,
 }
 
 impl AppConfig {
@@ -33,17 +33,17 @@ impl AppConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LdapConfig {
-    pub ldapfqdn: String,
-    #[serde(default = "default_ldap_port")]
-    pub port: u16,
-    #[serde(default)]
-    pub ldaps: bool,
-}
-fn default_ldap_port() -> u16 {
-    389
-}
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// pub struct LdapConfig {
+//     pub ldapfqdn: String,
+//     #[serde(default = "default_ldap_port")]
+//     pub port: u16,
+//     #[serde(default)]
+//     pub ldaps: bool,
+// }
+// fn default_ldap_port() -> u16 {
+//     389
+// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ObjectChangeType {

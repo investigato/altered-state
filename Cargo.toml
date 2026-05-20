@@ -17,8 +17,7 @@ diff = "0.1.13"
 tracing = "0.1.44"
 axum = "0.8.9"
 tracing-subscriber = { version = "0.3.23" ,features=["env-filter"]}
-quick-xml = { version = "0.40.1", features = ["async-tokio", "encoding"] }
-oxicode = { version = "0.2.3", features = ["derive"] }
+oxicode = { version = "0.2.3", features = ["compression-zstd", "derive", "serde"] }
 colored = "3.1.1"
 indicatif = "0.18.4"
 log = "0.4.29"

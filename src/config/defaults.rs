@@ -25,6 +25,24 @@ impl Default for PathsConfig {
     }
 }
 
+impl PathsConfig {
+    pub fn ensure_directories(&self) -> std::io::Result<()> {
+        let exe_path = std::env::current_exe().expect("Failed to get current executable path");
+        let base_dir = exe_path.parent().expect("Failed to get parent directory");
+        create_directory_if_not_exists(&base_dir.join(&self.images_directory))?;
+        create_directory_if_not_exists(&base_dir.join(&self.scenarios_directory))?;
+        create_directory_if_not_exists(&base_dir.join(&self.working_directory))?;
+        create_directory_if_not_exists(&base_dir.join(&self.temp_directory))?;
+        Ok(())
+    }
+}
+
+pub fn create_directory_if_not_exists(path: &std::path::Path) -> std::io::Result<()> {
+    if !path.exists() {
+        std::fs::create_dir_all(path)?;
+    }
+    Ok(())
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LoggingConfig {
@@ -38,5 +56,13 @@ impl Default for LoggingConfig {
             directory: "logs".to_string(),
             prefix: "log".to_string(),
         }
+    }
+}
+
+impl LoggingConfig {
+    pub fn ensure_directories(&self) -> std::io::Result<()> {
+        let exe_path = std::env::current_exe().expect("Failed to get current executable path");
+        let base_dir = exe_path.parent().expect("Failed to get parent directory");
+        create_directory_if_not_exists(&base_dir.join(&self.directory))
     }
 }

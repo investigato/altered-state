@@ -23,11 +23,11 @@ impl AppConfig {
                 exe_path
                     .parent()
                     .expect("Failed to get parent directory")
-                    .join("config.yaml")
+                    .join("config.json")
             }
         };
         Config::builder()
-            .add_source(File::from(config_path).format(FileFormat::Yaml))
+            .add_source(File::from(config_path).format(FileFormat::Json))
             .build()?
             .try_deserialize()
     }

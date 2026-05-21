@@ -1,6 +1,6 @@
 use crate::objects::attribute::{AttributeValueKind, SchemaEntry, SchemaObjectClass};
 use serde::{Deserialize, Serialize};
-use serde_saphyr::to_io_writer;
+use serde_json::to_writer as to_io_writer;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 

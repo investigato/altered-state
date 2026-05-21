@@ -23,3 +23,4 @@
 
 pub(crate) mod attribute;
 pub(crate) mod directory_objects;
+pub(crate) mod remediation;

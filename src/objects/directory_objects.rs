@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode, PartialEq, Eq)]
 pub struct DirectoryObject {
     pub dn: String,
     pub name: Option<String>,
@@ -24,7 +24,7 @@ impl DirectoryObject {
         let name = entry.attrs.get("name").and_then(|v| v.first()).cloned();
         let object_class = entry.attrs.get("objectClass").cloned().unwrap_or_default();
 
-        // Filter entry.attrs to keep only keys present in care_set.allow_list_attributes
+        // Filter entry.attrs to keep only keys present in attribute_control_set.allow_list_attributes
         let filtered_attributes: HashMap<String, Vec<String>> = entry
             .attrs
             .iter()
@@ -35,7 +35,7 @@ impl DirectoryObject {
             })
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
-        //   Filter entry.bin_attrs uses the same filter against allow_list_attributes
+        //   Filter entry.bin_attrs uses the same filter against attribute_control_set.allow_list_attributes
         let filtered_bin_attributes: HashMap<String, Vec<Vec<u8>>> = entry
             .bin_attrs
             .iter()
@@ -67,7 +67,7 @@ impl DirectoryObject {
         let bin_attributes = sorted_bin_attributes;
         let hash = compute_hash(&attributes, &bin_attributes);
         //  don't forget about isdeleted ahh yeah it's lowercase dumbass but makes sure to make it lowercase just in case
-        // Set is_deleted — check filtered attrs for "isdeleted" value "TRUE" or DN contains "CN=Deleted Objects"
+        // Set is_deleted by checking filtered_attributes for "isdeleted" value "TRUE" or DN contains "CN=Deleted Objects"
         let is_deleted = attributes
             .get("isdeleted")
             .and_then(|v| v.first())
@@ -120,8 +120,6 @@ fn compute_hash(
     let result = hasher.finalize();
     hex::encode_upper(result)
 }
-
-// need to store the .bin file as BincodeObjectBuffer<DirectoryObject>
 
 pub fn save_directory_objects_to_bin_file(
     objects: &[DirectoryObject],

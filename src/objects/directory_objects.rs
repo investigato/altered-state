@@ -1,7 +1,7 @@
 use crate::{objects::attribute::SchemaEntry, storage::attributes::AttributeControlSet};
-use oxicode::compression::{Compression, compress, decompress};
 use oxicode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
+use serde_json::{from_str, to_string_pretty};
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 
@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub struct DirectoryObject {
     pub dn: String,
     pub name: Option<String>,
+    pub sddl: Option<Vec<u8>>,
     pub object_class: Vec<String>,
     pub is_deleted: bool,
     pub attributes: HashMap<String, Vec<String>>,
@@ -23,49 +24,52 @@ impl DirectoryObject {
         let dn = entry.dn.to_string();
         let name = entry.attrs.get("name").and_then(|v| v.first()).cloned();
         let object_class = entry.attrs.get("objectClass").cloned().unwrap_or_default();
-
-        // Filter entry.attrs to keep only keys present in attribute_control_set.allow_list_attributes
-        let filtered_attributes: HashMap<String, Vec<String>> = entry
-            .attrs
+        let sddl = entry.bin_attrs
             .iter()
-            .filter(|(k, _)| {
-                attribute_control_set
-                    .allow_list_attributes
-                    .contains(&k.to_lowercase())
-            })
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-        //   Filter entry.bin_attrs uses the same filter against attribute_control_set.allow_list_attributes
-        let filtered_bin_attributes: HashMap<String, Vec<Vec<u8>>> = entry
-            .bin_attrs
-            .iter()
-            .filter(|(k, _)| {
-                attribute_control_set
-                    .allow_list_attributes
-                    .contains(&k.to_lowercase())
-            })
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-        //   Sort values within each kept attribute (Vec<String> and Vec<Vec<u8>> both sort in place)
-        let sorted_attributes: HashMap<String, Vec<String>> = filtered_attributes
-            .into_iter()
-            .map(|(k, mut v)| {
-                v.sort();
-                (k, v)
-            })
-            .collect();
+            .find(|(key, _)| key.eq_ignore_ascii_case("ntsecuritydescriptor"))
+            .and_then(|(_, values)| values.first())
+            .cloned();
 
-        let sorted_bin_attributes: HashMap<String, Vec<Vec<u8>>> = filtered_bin_attributes
-            .into_iter()
-            .map(|(k, mut v)| {
-                v.sort();
-                (k, v)
-            })
-            .collect();
-        //   Compute hash over the filtered and sorted attributes
-        let attributes = sorted_attributes;
-        let bin_attributes = sorted_bin_attributes;
-        let hash = compute_hash(&attributes, &bin_attributes);
+        // Normalize keys to lowercase so LDAP casing differences do not change hashes, that will fuck shit up
+        let mut attributes: HashMap<String, Vec<String>> = HashMap::new();
+        for (key, values) in &entry.attrs {
+            let normalized_key = key.to_lowercase();
+            if attribute_control_set
+                .allow_list_attributes
+                .contains(&normalized_key)
+            {
+                attributes
+                    .entry(normalized_key)
+                    .or_default()
+                    .extend(values.iter().cloned());
+            }
+        }
+
+        let mut bin_attributes: HashMap<String, Vec<Vec<u8>>> = HashMap::new();
+        for (key, values) in &entry.bin_attrs {
+            let normalized_key = key.to_lowercase();
+            if normalized_key == "ntsecuritydescriptor" {
+                continue;
+            }
+            if attribute_control_set
+                .allow_list_attributes
+                .contains(&normalized_key)
+            {
+                bin_attributes
+                    .entry(normalized_key)
+                    .or_default()
+                    .extend(values.iter().cloned());
+            }
+        }
+
+        // Keep stored value vectors stable as well.
+        for values in attributes.values_mut() {
+            values.sort();
+        }
+        for values in bin_attributes.values_mut() {
+            values.sort();
+        }
+
         //  don't forget about isdeleted ahh yeah it's lowercase dumbass but makes sure to make it lowercase just in case
         // Set is_deleted by checking filtered_attributes for "isdeleted" value "TRUE" or DN contains "CN=Deleted Objects"
         let is_deleted = attributes
@@ -74,10 +78,11 @@ impl DirectoryObject {
             .map(|s| s.eq_ignore_ascii_case("TRUE"))
             .unwrap_or(false)
             || dn.to_lowercase().contains("cn=deleted objects");
-
+        let hash = compute_hash(&attributes, &bin_attributes);
         DirectoryObject {
             dn,
             name,
+            sddl,
             object_class,
             is_deleted,
             attributes,
@@ -86,6 +91,16 @@ impl DirectoryObject {
         }
     }
 }
+
+fn is_nt_security_descriptor_attr(attr_name: &str) -> bool {
+    attr_name
+        .split([';', ':'])
+        .next()
+        .map(str::trim)
+        .map(|base| base.eq_ignore_ascii_case("nTSecurityDescriptor"))
+        .unwrap_or(false)
+}
+
 fn compute_hash(
     attributes: &HashMap<String, Vec<String>>,
     bin_attributes: &HashMap<String, Vec<Vec<u8>>>,
@@ -95,11 +110,12 @@ fn compute_hash(
     let mut keys: Vec<&String> = attributes.keys().collect();
     keys.sort();
     for key in keys {
-        let values = &attributes[key];
+        let mut values = attributes.get(key).cloned().unwrap_or_default();
+        values.sort();
         hasher.update((key.len() as u32).to_be_bytes());
         hasher.update(key.as_bytes());
         hasher.update((values.len() as u32).to_be_bytes());
-        for value in values {
+        for value in &values {
             hasher.update((value.len() as u32).to_be_bytes());
             hasher.update(value.as_bytes());
         }
@@ -108,11 +124,12 @@ fn compute_hash(
     let mut bin_keys: Vec<&String> = bin_attributes.keys().collect();
     bin_keys.sort();
     for key in bin_keys {
-        let values = &bin_attributes[key];
+        let mut values = bin_attributes.get(key).cloned().unwrap_or_default();
+        values.sort();
         hasher.update((key.len() as u32).to_be_bytes());
         hasher.update(key.as_bytes());
         hasher.update((values.len() as u32).to_be_bytes());
-        for value in values {
+        for value in &values {
             hasher.update((value.len() as u32).to_be_bytes());
             hasher.update(value);
         }
@@ -127,6 +144,18 @@ pub fn save_directory_objects_to_bin_file(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let owned_objects: Vec<DirectoryObject> = objects.to_vec();
     oxicode::encode_to_file(&owned_objects, path)?;
+    Ok(())
+}
+
+pub fn save_directory_objects_to_json_file(
+    objects: &[DirectoryObject],
+    path: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let json = to_string_pretty(objects)?;
+    // change extension to .json
+    let mut json_path = path.to_path_buf();
+    json_path.set_extension("json");
+    std::fs::write(json_path, json)?;
     Ok(())
 }
 

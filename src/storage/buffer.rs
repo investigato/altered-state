@@ -39,15 +39,15 @@ impl<T> Storage<T> for Vec<T> {
         self
     }
 
-    // no need to check capacity
-    fn add(&mut self, item: T) -> Result<(), Box<dyn Error>> {
-        self.push(item);
-        Ok(())
-    }
+	fn flush(&mut self) -> Result<(), Box<dyn Error>> {
+		Ok(())
+	}
 
-    fn flush(&mut self) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
+	// no need to check capacity
+	fn add(&mut self, item: T) -> Result<(), Box<dyn Error>> {
+		self.push(item);
+		Ok(())
+	}
 }
 
 pub struct OxicodeObjectBuffer<T> {
@@ -140,7 +140,7 @@ impl RWHandle {
     }
 }
 
-impl std::io::Write for RWHandle {
+impl Write for RWHandle {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.0.write(buf)
     }

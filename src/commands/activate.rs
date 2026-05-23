@@ -1,29 +1,27 @@
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use clap::Args;
 
 use crate::{
-	config::app::AppConfig,
-	// engine::activate::{self, ActivateRequest},
+    cleanup_crew::activate::{ActivateRequest, run as activate_scenario},
+    config::app::AppConfig,
 };
-
 #[derive(Debug, Args)]
 pub struct ActivateArgs {
-	#[arg(long)]
-	pub scenario: String,
+    #[arg(long)]
+    pub scenario: String,
 
-	#[arg(long)]
-	pub state: String,
-
-	#[arg(long)]
-	pub dry_run: bool,
+    #[arg(long = "state", default_value = "baseline")]
+    pub state: Option<String>,
 }
 
-// pub async fn run(args: ActivateArgs, config: AppConfig) -> Result<()> {
-// 	let request = ActivateRequest {
-// 		scenario: args.scenario,
-// 		state: args.state,
-// 		dry_run: args.dry_run,
-// 	};
-
-// 	activate::run(config, request).await
-// }
+pub async fn run(args: ActivateArgs, config: AppConfig) -> Result<()> {
+    if args.scenario.is_empty() {
+        println!("Scenario name is required");
+        return Ok(());
+    }
+    let request = ActivateRequest {
+        scenario: args.scenario,
+        state: args.state,
+    };
+    activate_scenario(config, request).await
+}

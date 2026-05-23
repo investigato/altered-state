@@ -1,14 +1,18 @@
 use crate::{
-    config::app::AppConfig,
+    models::ldap::{LdapNamingContexts, LdapOptions},
     objects::{
         attribute::SchemaEntry,
-        directory_objects::{ADResults, DirectoryObject, save_directory_objects_to_bin_file},
+        directory_objects::{
+            ADResults, DirectoryObject, save_directory_objects_to_bin_file,
+            save_directory_objects_to_json_file,
+        },
     },
     storage::{EntrySource, Storage, attributes::build_attribute_control_sets},
     utilities::banner::progress_bar,
 };
 use colored::Colorize;
 use indicatif::ProgressBar;
+use itertools::Itertools;
 use ldap3::adapters::{Adapter, EntriesOnly};
 use ldap3::{LdapConnAsync, LdapConnSettings, adapters::PagedResults, controls::RawControl};
 use ldap3::{Scope, SearchEntry};
@@ -17,65 +21,24 @@ use oxicode::{Decode, Encode};
 use serde_json::json;
 use std::collections::HashMap;
 use std::error::Error;
+
 use std::path::Path;
 use std::process;
-#[derive(Clone, Debug)]
-pub struct LdapOptions {
-    pub domain: String,
-    pub ldapfqdn: String,
-    pub ip: Option<String>,
-    pub port: Option<u16>,
-    pub ldaps: bool,
-    pub ldap_filter: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CollectionScope {
-    SchemaOnly,
-    DirectoryData,
-    FullDirectory,
-}
-
-pub enum RetconOperation {
-    Init,
-    New,
-    Activate,
-    Compare,
-    Reset,
-    Delete,
-    List,
-    Serve,
-}
-
-pub fn required_collection_scope(
-    operation: RetconOperation,
-    has_cached_schema: bool,
-    target_state_requires_schema: bool,
-) -> CollectionScope {
-    match operation {
-        RetconOperation::Init => CollectionScope::FullDirectory,
-
-        RetconOperation::New => CollectionScope::FullDirectory,
-
-        RetconOperation::Activate | RetconOperation::Compare | RetconOperation::Reset => {
-            if !has_cached_schema || target_state_requires_schema {
-                CollectionScope::FullDirectory
-            } else {
-                CollectionScope::DirectoryData
-            }
-        }
-
-        RetconOperation::List | RetconOperation::Delete | RetconOperation::Serve => {
-            CollectionScope::DirectoryData
-        }
-    }
-}
+// #[derive(Clone, Debug)]
+// pub struct LdapOptions {
+//     pub domain: String,
+//     pub ldapfqdn: String,
+//     pub ip: Option<String>,
+//     pub port: Option<u16>,
+//     pub ldaps: bool,
+//     pub ldap_filter: Option<String>,
+// }
 
 /// Function to request all AD values.
 pub async fn ldap_search<S: Storage<LdapSearchEntry>>(
     options: LdapOptions,
     storage: &mut S,
-    collection_scope: CollectionScope,
+    naming_contexts_file: &Path,
 ) -> Result<usize, Box<dyn Error>> {
     // Construct LDAP args
 
@@ -107,9 +70,14 @@ pub async fn ldap_search<S: Storage<LdapSearchEntry>>(
     let mut total = 0; // for progress bar
 
     // Request all namingContexts for current DC
-    let res = match get_all_naming_contexts(&mut ldap, collection_scope).await {
+    let res = match get_all_naming_contexts(&mut ldap).await {
         Ok(res) => {
             trace!("naming_contexts: {:?}", &res);
+            // save naming contexts to file for later use in other commands
+            let naming_contexts = LdapNamingContexts {
+                naming_contexts: res.clone(),
+            };
+            naming_contexts.save_to_file(naming_contexts_file)?;
             res
         }
         Err(err) => {
@@ -153,11 +121,14 @@ pub async fn ldap_search<S: Storage<LdapSearchEntry>>(
                 options
                     .ldap_filter
                     .as_deref()
-                    .unwrap_or("(objectClass=*)")
+                    .unwrap_or("&((objectClass=*)(!(cn=DisplaySpecifiers)))")
                     .bold()
                     .green()
             );
-            let _s_filter = options.ldap_filter.as_deref().unwrap_or("(objectClass=*)");
+            let _s_filter = options
+                .ldap_filter
+                .as_deref()
+                .unwrap_or("&((objectClass=*)(!(cn=DisplaySpecifiers)))");
 
             // Every 999 max value in ldap response (err 4 ldap)
             let adapters: Vec<Box<dyn Adapter<_, _>>> = vec![
@@ -244,7 +215,7 @@ fn ldap_constructor(
 
     // Prepare full DC chain
     let s_dc = prepare_ldap_dc(domain);
-
+    // Format username and email
     // Print infos if verbose mod is set
     debug!("IP: {}", ip.unwrap_or("not set"));
     debug!(
@@ -260,6 +231,7 @@ fn ldap_constructor(
     debug!("Url: {}", s_url);
     debug!("Domain: {}", domain);
     debug!("DC: {:?}", s_dc);
+
     Ok(LdapArgs {
         s_url: s_url.to_string(),
         _s_dc: s_dc,
@@ -275,10 +247,7 @@ fn prepare_ldap_url(ldaps: bool, ip: Option<&str>, port: Option<u16>, domain: &s
         "ldap"
     };
 
-    let target = match ip {
-        Some(ip) => ip,
-        None => domain,
-    };
+    let target = ip.unwrap_or(domain);
 
     match port {
         Some(port) => {
@@ -339,7 +308,6 @@ async fn gssapi_connection(
 /// (Not needed yet...yes it is! [Gato]) Get all namingContext for DC
 pub async fn get_all_naming_contexts(
     ldap: &mut ldap3::Ldap,
-    collection_scope: CollectionScope,
 ) -> Result<Vec<String>, Box<dyn Error>> {
     // Every 999 max value in ldap response (err 4 ldap)
     let adapters: Vec<Box<dyn Adapter<_, _>>> = vec![
@@ -374,25 +342,10 @@ pub async fn get_all_naming_contexts(
             for result in rs {
                 let result_attrs: HashMap<String, Vec<String>> = result.attrs;
 
-                for value in result_attrs.values() {
+                for (_key, value) in &result_attrs {
                     for naming_context in value {
                         debug!("namingContext found: {}", &naming_context.bold().green());
-                        // collection_scope determines whether to include the namingContext in the result vector based on its content
-                        match collection_scope {
-                            CollectionScope::SchemaOnly => {
-                                if naming_context.contains("Schema") {
-                                    naming_contexts.push(naming_context.to_string());
-                                }
-                            }
-                            CollectionScope::DirectoryData => {
-                                if !naming_context.contains("Schema") {
-                                    naming_contexts.push(naming_context.to_string());
-                                }
-                            }
-                            CollectionScope::FullDirectory => {
-                                naming_contexts.push(naming_context.to_string());
-                            }
-                        }
+                        naming_contexts.push(naming_context.to_string());
                     }
                 }
             }
@@ -457,12 +410,12 @@ pub enum Type {
     SchemaEntry,
 }
 /// Get object type, like ("user","group","computer","ou", "container", "gpo", "domain" "trust").
-pub fn get_type(result: &SearchEntry) -> std::result::Result<Type, Type> {
+pub fn get_type(result: &SearchEntry) -> Result<Type, Type> {
     let result_attrs = &result.attrs;
 
     let contains = |values: &Vec<String>, to_find: &str| values.iter().any(|elem| elem == to_find);
     let object_class_vals = result_attrs.get("objectClass");
-    let flags_vals = result_attrs.get("flags");
+    result_attrs.get("flags");
 
     if let Some(vals) = object_class_vals {
         match () {
@@ -479,11 +432,18 @@ pub async fn prepare_results_from_source<S: EntrySource>(
     source: S,
     domain: &str,
     export_path: &Path,
+    update_schema_file: bool,
     source_output_path: &Path,
     total_objects: Option<usize>,
-) -> Result<ADResults, Box<dyn std::error::Error>> {
-    let mut ad_results =
-        parse_result_type_from_source(domain, export_path,source_output_path, source, total_objects)?;
+) -> Result<ADResults, Box<dyn Error>> {
+    let ad_results = parse_result_type_from_source(
+        domain,
+        export_path,
+        update_schema_file,
+        source_output_path,
+        source,
+        total_objects,
+    )?;
 
     // Functions to replace and add missing values
     // check_all_result(
@@ -519,59 +479,69 @@ pub async fn prepare_results_from_source<S: EntrySource>(
 pub fn parse_result_type_from_source(
     domain: &str,
     export_path: &Path,
+    update_schema_file: bool,
     schema_output_path: &Path,
     source: impl EntrySource,
     total_objects: Option<usize>,
 ) -> Result<ADResults, Box<dyn Error>> {
     let mut results = ADResults::default();
     // Domain name
-    let domain = domain;
 
     // Needed for progress bar stats
     let pb = ProgressBar::new(1);
     let mut count = 0;
     let total = total_objects;
-    let domain_sid: String = "DOMAIN_SID".to_owned();
+    // "DOMAIN_SID".to_owned();
 
-    log::info!("Starting the LDAP objects parsing...");
+    info!("Starting the LDAP objects parsing...");
     // The schema_guids from (CN=Schema,CN=Configuration...) get here late,
     // but they are needed to fully parse the ACLs. Reason: ACL parsing is inline
     // for every object so without the GUID mapping available, it is incomplete.
 
-    let all_entries: Vec<crate::ldap::LdapSearchEntry> =
+    let all_entries: Vec<LdapSearchEntry> =
         source.into_entry_iter().collect::<Result<Vec<_>, _>>()?;
     // All the schema entries first (both attributeSchema and classSchema)
-    let schema_entries: Vec<SchemaEntry> = all_entries
-        .iter()
-        .filter_map(|e| {
+    let (schema_entries, non_schema_entries): (Vec<SchemaEntry>, Vec<LdapSearchEntry>) =
+        all_entries.into_iter().partition_map(|e| {
             let se = SearchEntry::from(e.clone());
             if matches!(get_type(&se), Ok(Type::SchemaEntry)) {
                 let mut schema_entry = SchemaEntry::new();
                 match SchemaEntry::parse(&mut schema_entry, se) {
-                    Ok(()) => Some(schema_entry),
-                    Err(_) => None,
+                    Ok(()) => itertools::Either::Left(schema_entry),
+                    Err(_) => itertools::Either::Right(e),
                 }
             } else {
-                None
+                itertools::Either::Right(e)
             }
-        })
-        .collect();
-    log::info!(
-        "Schema finder: {} schema entries found",
-        schema_entries.len()
-    );
+        });
+    // .iter()
+    // .filter_map(|e| {
+    //     let se = SearchEntry::from(e.clone());
+    //     if matches!(get_type(&se), Ok(Type::SchemaEntry)) {
+    //         let mut schema_entry = SchemaEntry::new();
+    //         match SchemaEntry::parse(&mut schema_entry, se) {
+    //             Ok(()) => Some(schema_entry),
+    //             Err(_) => None,
+    //         }
+    //     } else {
+    //         None
+    //     }
+    // })
+    // .collect();
+    // info!(
+    //     "Schema finder: {} schema entries found",
+    //     schema_entries.len()
+    // );
     // build attribute control sets for later use in ACL parsing and value parsing
     // construct config.paths.scenarios_directory + "/schema_attributes.yaml"
 
-    let attribute_control_set = build_attribute_control_sets(&schema_entries, schema_output_path);
+    let attribute_control_set =
+        build_attribute_control_sets(&schema_entries, schema_output_path, update_schema_file);
+
     // let (schema_map, property_set_map) = build_maps(schema_entries);
     // init_maps(schema_map, property_set_map);
-    let dn_sid = &mut results.mappings.dn_sid;
-    let sid_type = &mut results.mappings.sid_type;
-    let fqdn_sid = &mut results.mappings.fqdn_sid;
-    let fqdn_ip = &mut results.mappings.fqdn_ip;
 
-    for raw_entry in all_entries {
+    for raw_entry in non_schema_entries {
         let entry: SearchEntry = raw_entry.into();
         // Start parsing with Type matching
 
@@ -596,8 +566,9 @@ pub fn parse_result_type_from_source(
     }
     // if there are directory objects, write them to file
     save_directory_objects_to_bin_file(&results.directory_objects, export_path)?;
+    save_directory_objects_to_json_file(&results.directory_objects, export_path)?;
     pb.finish_and_clear();
-    log::info!("Parsing LDAP objects finished!");
+    info!("Parsing LDAP objects finished!");
     Ok(results)
 }
 

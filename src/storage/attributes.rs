@@ -14,6 +14,7 @@ pub struct AttributeControlSet {
 pub fn build_attribute_control_sets(
     entries: &[SchemaEntry],
     schema_output_path: &std::path::Path,
+    update_schema_file: bool,
 ) -> AttributeControlSet {
     let mut system_attributes = HashSet::new();
     let mut allow_list_attributes = HashSet::new();
@@ -30,24 +31,35 @@ pub fn build_attribute_control_sets(
             value_kinds.insert(name.clone(), kind);
         }
 
-        if entry.system_only || entry.is_constructed() || entry.is_not_replicated() {
+        let _these_must_be_ignored_to_avoid_fucking_things_up = [
+            "certificatetemplates",
+            "objectcategory",
+            "cn",
+        ];
+        if entry.system_only
+            || entry.is_constructed()
+            || entry.is_not_replicated()
+            || _these_must_be_ignored_to_avoid_fucking_things_up.contains(&name.as_str())
+        {
             system_attributes.insert(name);
         } else {
             allow_list_attributes.insert(name);
         }
     }
 
-    let mut file =
-        File::create(schema_output_path).expect("Failed to create schema_attributes.yaml");
-    to_io_writer(
-        &mut file,
-        &AttributeControlSet {
-            system_attributes: system_attributes.clone(),
-            allow_list_attributes: allow_list_attributes.clone(),
-            value_kinds: value_kinds.clone(),
-        },
-    )
-    .expect("Failed to write to schema_attributes.yaml");
+    if update_schema_file {
+        let mut file = File::create(schema_output_path)
+            .unwrap_or_else(|_| panic!("Failed to create {}", schema_output_path.display()));
+        to_io_writer(
+            &mut file,
+            &AttributeControlSet {
+                system_attributes: system_attributes.clone(),
+                allow_list_attributes: allow_list_attributes.clone(),
+                value_kinds: value_kinds.clone(),
+            },
+        )
+        .expect("Failed to write to schema_attributes.json");
+    }
     AttributeControlSet {
         system_attributes,
         allow_list_attributes,

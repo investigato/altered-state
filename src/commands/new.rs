@@ -1,37 +1,41 @@
+use anyhow::Result;
+use clap::Args;
+
 use crate::{
     config::{app::AppConfig, scenarios::ScenarioConfig},
     ldap::{ldap_search, prepare_results_from_source},
     models::ldap::generate_ldap_options_from_config,
     models::scenario::{ScenarioExportType, ScenarioRef, ScenarioState},
 };
-use anyhow::Result;
-use clap::Args;
-use std::path::Path;
 
+// private readonly Option<bool> _activateOption;
+// private readonly Option<string> _descriptionOption;
+// private readonly Option<string> _nameOption;
 #[derive(Debug, Args)]
-pub struct InitArgs {
-    #[arg(long = "overwrite")]
+pub struct NewScenarioArgs {
+    #[arg(long = "overwrite", short = 'o')]
     pub overwrite: bool,
-
-    #[arg(long = "template")]
+    #[arg(long = "template", short = 't')]
     pub template_configuration: Option<String>,
+    #[arg(long = "description", short = 'd')]
+    pub description: Option<String>,
+    #[arg(long = "name", short = 'n')]
+    pub name: String,
 }
 
-pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
+pub async fn run(_args: NewScenarioArgs, _config: AppConfig) -> Result<()> {
     _config.paths.ensure_directories()?;
     _config.logging.ensure_directories()?;
     let overwrite = _args.overwrite;
-    // check command specific options
-    // var templateConfigPath = parseResult.GetValue(_templateConfigOption);
 
-    // var scenarioName = "gold";
-    // var scenarioDescription = "Baseline for the default scenario";
-    let target_scenario_name = "default".to_string();
-    let target_scenario_description = "Baseline for the default scenario".to_string();
+    let description = match _args.description {
+        Some(desc) => desc,
+        None => _args.name.to_string(),
+    };
+    let name = _args.name;
     let target_scenario_directory =
-        std::path::Path::new(&_config.paths.scenarios_directory).join(&target_scenario_name);
+        std::path::Path::new(&_config.paths.scenarios_directory).join(&name);
     let target_export_type = ScenarioExportType::Baseline;
-    // make sure it exists and is empty (if overwrite is true)
     let target_export_path = target_scenario_directory.join(format!(
         "{}.bin",
         target_export_type.to_string().to_lowercase()
@@ -48,18 +52,10 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
         }
     }
     std::fs::create_dir_all(&target_scenario_directory)?;
-
-    // List<ScenarioHook> scenarioScripts;
-    // List<Exclusion> scenarioExclusions;
-    // bool scenarioIncludeDefaultWatchedAttributes;
-    // List<string> scenarioWatchedAttributes;
-
-    // if (templateConfigPath == null)
-    // {
     let scenario_config = match _args.template_configuration {
         None => ScenarioConfig {
-            name: target_scenario_name,
-            description: Some(target_scenario_description),
+            name: name.clone(),
+            description: Some(description.clone()),
             image_path: None,
             hooks: Vec::new(),
             exclusions: Vec::new(),
@@ -99,17 +95,14 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
             let scenario_exclusions = template_config.exclusions;
 
             ScenarioConfig {
-                name: target_scenario_name,
-                description: Some(target_scenario_description),
+                name: name.clone(),
+                description: Some(description.clone()),
                 image_path,
                 hooks: scenario_scripts,
                 exclusions: scenario_exclusions,
             }
         }
     };
-    // get the schema and write it out to have the system_attributes.yaml file created with the default system attributes
-    // AdExporter.ExportSchema(retconConfig);
-    // generate ldap options from config file
     
     let ldap_options = generate_ldap_options_from_config(&_config);
 
@@ -121,7 +114,6 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
     )
     .await
     .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-
     prepare_results_from_source(
         ldap_results,
         &_config.domain,
@@ -132,10 +124,6 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
     )
     .await
     .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-    // var goldConfigPath = Path.Combine(fullPath, "config.json");
-    // try
-    // {
-    // save it
     let target_scenario_config_path = target_scenario_directory.join("config.json");
     // serialize the config and write it out to the scenario folder
     scenario_config
@@ -153,6 +141,17 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
     scenario_state
         .save(&_config.paths.scenario_state_file)
         .map_err(|e| anyhow::anyhow!("Failed to update scenario state file: {}", e))?;
+
+    // activate_scenario(
+    //     _config,
+    //     ActivateRequest {
+    //         scenario: name,
+    //         state: Some(target_export_type.to_string()),
+    //     },
+    // )
+    // .await?;
+
+    //   ScenarioManager.ExecuteScripts(config,newActiveScenario, ScriptType.Activation,config.PowerShellExecutableLocation);
 
     Ok(())
 }

@@ -19,10 +19,10 @@ use std::collections::{HashMap, HashSet};
 //     Dictionary<string, AdObject> targetObjects)
 // {
 //     var actions = new List<RemediationAction>();
-pub fn compare_states(
+pub async fn compare_states(
     current: Vec<DirectoryObject>,
     target: Vec<DirectoryObject>,
-) -> HashMap<String, Vec<RemediationAction>> {
+) -> Result<HashMap<String, Vec<RemediationAction>>, Box<dyn std::error::Error + Send + Sync>> {
     let mut actions: HashMap<String, Vec<RemediationAction>> = HashMap::new();
     //   DirectoryObjects keyed by DN, then we tiptoe through the union of keys.
     let current_map: HashMap<String, DirectoryObject> = current
@@ -44,7 +44,6 @@ pub fn compare_states(
         match (current_obj, target_obj) {
             (Some(current), Some(target)) => {
                 if current.hash != target.hash {
-                    // println!("Modified: {}", dn);
                     // was the object deleted and needs to be reanimated?
                     // if (IsDeletedObject(current) && !IsDeletedObject(target))
                     // {
@@ -113,7 +112,7 @@ pub fn compare_states(
         .map(|(dn, acts)| (dn, reconcile_tombstones(acts)))
         .map(|(dn, acts)| (dn, sort_actions(acts)))
         .collect();
-    reconciled_actions
+    Ok(reconciled_actions)
 }
 // i'll try to remember to remove this later, but I want to see it now
 // let empty_vals: Vec<String> = Vec::new();
@@ -180,7 +179,7 @@ fn reconcile_tombstones(actions: Vec<RemediationAction>) -> Vec<RemediationActio
     // Find actions where Action == Delete && action.LastKnownParent == null
     // These are live objects with no target, no parent info
 
-    let parentless_deletes: Vec<RemediationAction> = actions
+    let mut parentless_deletes: Vec<RemediationAction> = actions
         .iter()
         .filter(|action| action.action == ActionType::Delete && action.last_known_parent.is_none())
         .cloned()
@@ -203,19 +202,17 @@ fn reconcile_tombstones(actions: Vec<RemediationAction>) -> Vec<RemediationActio
         //             var match = parentlessDeletes.FirstOrDefault(d =>
         //                 d.Current != null && d.Current.Name.Equals(cn, StringComparison.OrdinalIgnoreCase));
 
-        let matching_delete = parentless_deletes
-            .iter()
-            .find(|directory_object| {
-                directory_object
-                    .current
-                    .as_ref()
-                    .and_then(|current| current.name.as_deref())
-                    .is_some_and(|name| name.eq_ignore_ascii_case(cn))
-            })
-            .cloned();
+        let matching_delete_index = parentless_deletes.iter().position(|directory_object| {
+            directory_object
+                .current
+                .as_ref()
+                .and_then(|current| current.name.as_deref())
+                .is_some_and(|name| name.eq_ignore_ascii_case(cn))
+        });
         //             if (match != null)
         //             {
-        if let Some(matching_delete) = matching_delete {
+        if let Some(matching_delete_index) = matching_delete_index {
+            let matching_delete = parentless_deletes.remove(matching_delete_index);
             // If there's a match remove both, add one Delete action with Current from the live object and
             // LastKnownParent pulled from the tombstone's lastKnownParent attribute
             actions.retain(|action| action != tombstone && action != &matching_delete);
@@ -226,8 +223,14 @@ fn reconcile_tombstones(actions: Vec<RemediationAction>) -> Vec<RemediationActio
                 last_known_parent: tombstone_target.and_then(|target| {
                     target
                         .attributes
-                        .get("LastKnownParent")
+                        .get("lastknownparent")
                         .and_then(|value| value.first().cloned())
+                        .or_else(|| {
+                            target
+                                .attributes
+                                .get("LastKnownParent")
+                                .and_then(|value| value.first().cloned())
+                        })
                 }),
             });
         }
@@ -240,9 +243,6 @@ fn reconcile_tombstones(actions: Vec<RemediationAction>) -> Vec<RemediationActio
         !unmatched_tombstones
             .iter()
             .any(|target_action| target_action == action)
-    });
-    actions.retain(|action| {
-        !(action.action == ActionType::Delete && action.last_known_parent.is_none())
     });
     actions
 }

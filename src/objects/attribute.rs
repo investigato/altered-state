@@ -92,6 +92,8 @@ impl SchemaEntry {
     pub fn is_constructed(&self) -> bool {
         self.system_flags & 0x4 != 0
     }
+
+    
     pub fn parse(&mut self, result: SearchEntry) -> Result<(), Box<dyn std::error::Error>> {
         let result_dn: String = result.dn.to_uppercase();
         let result_attrs: HashMap<String, Vec<String>> = result.attrs;

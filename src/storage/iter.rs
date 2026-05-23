@@ -25,7 +25,7 @@ where
         })
     }
 
-    pub fn from_file(file: std::fs::File) -> Self {
+    pub fn from_file(file: File) -> Self {
         Self {
             reader: BufReader::new(file),
             _phantom: PhantomData,

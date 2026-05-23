@@ -1,43 +1,83 @@
+use crate::models::ldap::LdapNamingContexts;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PathsConfig {
-    pub actions_script_file: String,
-    pub images_directory: String,
-    pub scenarios_directory: String,
-    pub scenario_state_file: String,
-    pub schema_attributes_file: String,
-    pub working_directory: String,
-    pub temp_directory: String,
+    pub actions_script_file: PathBuf,
+    pub images_directory: PathBuf,
+    pub scenarios_directory: PathBuf,
+    pub scenario_state_file: PathBuf,
+    pub schema_attributes_file: PathBuf,
+    pub naming_contexts_file: PathBuf,
+    pub working_directory: PathBuf,
+    pub temp_directory: PathBuf,
 }
 
 impl Default for PathsConfig {
     fn default() -> Self {
+        let exe_path = std::env::current_exe().expect("Failed to get current executable path");
+        let base_dir = exe_path.parent().expect("Failed to get parent directory");
+        let web_directory = base_dir.join("web").join("wwwroot");
+        let temp_directory = base_dir.join("temp");
+        let actions_script_file = temp_directory.join("actions.ps1");
+        let images_directory = web_directory.join("images");
+        let scenarios_directory = base_dir.join("scenarios");
+        let scenario_state_file = "scenario_state.json".to_string();
+        let scenario_state_path = scenarios_directory.join(&scenario_state_file);
+        let schema_attributes_file = scenarios_directory.join("schema_attributes.json");
+        let naming_contexts_file = scenarios_directory.join("naming_contexts.json");
+        let working_directory = base_dir.join("working");
         PathsConfig {
-            actions_script_file: "actions.ps1".to_string(),
-            images_directory: "images".to_string(),
-            scenarios_directory: "scenarios".to_string(),
-            scenario_state_file: "scenario_state.yaml".to_string(),
-            schema_attributes_file: "schema_attributes.yaml".to_string(),
-            working_directory: "working".to_string(),
-            temp_directory: "temp".to_string(),
+            actions_script_file,
+            images_directory,
+            scenarios_directory,
+            scenario_state_file: scenario_state_path,
+            schema_attributes_file,
+            naming_contexts_file,
+            working_directory,
+            temp_directory,
         }
     }
 }
 
 impl PathsConfig {
     pub fn ensure_directories(&self) -> std::io::Result<()> {
-        let exe_path = std::env::current_exe().expect("Failed to get current executable path");
-        let base_dir = exe_path.parent().expect("Failed to get parent directory");
-        create_directory_if_not_exists(&base_dir.join(&self.images_directory))?;
-        create_directory_if_not_exists(&base_dir.join(&self.scenarios_directory))?;
-        create_directory_if_not_exists(&base_dir.join(&self.working_directory))?;
-        create_directory_if_not_exists(&base_dir.join(&self.temp_directory))?;
+        create_directory_if_not_exists(&self.images_directory)?;
+        create_directory_if_not_exists(&self.scenarios_directory)?;
+        // create the scenario_state.json file if it doesn't exist and fill with empty ScenarioState JSON
+        if !self.scenario_state_file.exists() {
+            let scenario_state = crate::models::scenario::ScenarioState::new();
+            let state_str = serde_json::to_string_pretty(&scenario_state)
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            std::fs::write(&self.scenario_state_file, state_str)?;
+        }
+        // create the schema_attributes.json file if it doesn't exist and fill with empty AttributeControlSet JSON
+        if !self.schema_attributes_file.exists() {
+            let attribute_control_set = crate::storage::attributes::AttributeControlSet {
+                system_attributes: std::collections::HashSet::new(),
+                allow_list_attributes: std::collections::HashSet::new(),
+                value_kinds: std::collections::HashMap::new(),
+            };
+            let attributes_str = serde_json::to_string_pretty(&attribute_control_set)
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            std::fs::write(&self.schema_attributes_file, attributes_str)?;
+        }
+        if !self.naming_contexts_file.exists() {
+            let naming_contexts = LdapNamingContexts {
+                naming_contexts: Vec::new(),
+            };
+            let contexts_str = serde_json::to_string_pretty(&naming_contexts)
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            std::fs::write(&self.naming_contexts_file, contexts_str)?;
+        }
+        create_directory_if_not_exists(&self.working_directory)?;
+        create_directory_if_not_exists(&self.temp_directory)?;
         Ok(())
     }
 }
 
-pub fn create_directory_if_not_exists(path: &std::path::Path) -> std::io::Result<()> {
+fn create_directory_if_not_exists(path: &Path) -> std::io::Result<()> {
     if !path.exists() {
         std::fs::create_dir_all(path)?;
     }
@@ -46,14 +86,17 @@ pub fn create_directory_if_not_exists(path: &std::path::Path) -> std::io::Result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LoggingConfig {
-    pub directory: String,
+    pub directory: PathBuf,
     pub prefix: String,
 }
 
 impl Default for LoggingConfig {
     fn default() -> Self {
+        let exe_path = std::env::current_exe().expect("Failed to get current executable path");
+        let base_dir = exe_path.parent().expect("Failed to get parent directory");
+        let logs_directory = base_dir.join("logs");
         LoggingConfig {
-            directory: "logs".to_string(),
+            directory: logs_directory,
             prefix: "log".to_string(),
         }
     }
@@ -61,8 +104,6 @@ impl Default for LoggingConfig {
 
 impl LoggingConfig {
     pub fn ensure_directories(&self) -> std::io::Result<()> {
-        let exe_path = std::env::current_exe().expect("Failed to get current executable path");
-        let base_dir = exe_path.parent().expect("Failed to get parent directory");
-        create_directory_if_not_exists(&base_dir.join(&self.directory))
+        create_directory_if_not_exists(&self.directory)
     }
 }

@@ -14,7 +14,6 @@ use crate::{
         reset::{self, ResetRequest},
     },
     config::app::AppConfig,
-    config::scenarios::ScenarioConfig,
 };
 
 #[derive(Clone)]

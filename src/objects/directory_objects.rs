@@ -1,7 +1,7 @@
 use crate::{objects::attribute::SchemaEntry, storage::attributes::AttributeControlSet};
 use oxicode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-use serde_json::{from_str, to_string_pretty};
+use serde_json::to_string_pretty;
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 
@@ -24,7 +24,8 @@ impl DirectoryObject {
         let dn = entry.dn.to_string();
         let name = entry.attrs.get("name").and_then(|v| v.first()).cloned();
         let object_class = entry.attrs.get("objectClass").cloned().unwrap_or_default();
-        let sddl = entry.bin_attrs
+        let sddl = entry
+            .bin_attrs
             .iter()
             .find(|(key, _)| key.eq_ignore_ascii_case("ntsecuritydescriptor"))
             .and_then(|(_, values)| values.first())
@@ -92,14 +93,14 @@ impl DirectoryObject {
     }
 }
 
-fn is_nt_security_descriptor_attr(attr_name: &str) -> bool {
-    attr_name
-        .split([';', ':'])
-        .next()
-        .map(str::trim)
-        .map(|base| base.eq_ignore_ascii_case("nTSecurityDescriptor"))
-        .unwrap_or(false)
-}
+// fn is_nt_security_descriptor_attr(attr_name: &str) -> bool {
+//     attr_name
+//         .split([';', ':'])
+//         .next()
+//         .map(str::trim)
+//         .map(|base| base.eq_ignore_ascii_case("nTSecurityDescriptor"))
+//         .unwrap_or(false)
+// }
 
 fn compute_hash(
     attributes: &HashMap<String, Vec<String>>,

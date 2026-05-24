@@ -1,5 +1,5 @@
 //! Launch and end banners
-use crate::utilities::date::{return_current_date, return_current_time};
+use chrono::Local;
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -30,11 +30,6 @@ pub fn print_banner() {
     );
 }
 
-/// Banner at end.
-pub fn print_end_banner() {
-    println!("\nWe done at {}!", return_current_time(),);
-}
-
 /// Progress Bar.
 pub fn progress_bar(pb: ProgressBar, message: String, count: u64, end_message: String) {
     pb.set_style(
@@ -44,4 +39,14 @@ pub fn progress_bar(pb: ProgressBar, message: String, count: u64, end_message: S
     );
     pb.inc(count);
     pb.with_message(format!("{}: {}{}", message, count, end_message));
+}
+
+/// Function to return current hours.
+pub fn return_current_time() -> String {
+    Local::now().format("%T").to_string()
+}
+
+/// Function to return current date.
+pub fn return_current_date() -> String {
+    Local::now().format("%D").to_string()
 }

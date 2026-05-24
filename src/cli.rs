@@ -1,6 +1,6 @@
 use crate::commands::{
     activate::ActivateArgs, compare::CompareArgs, init::InitArgs, new::NewScenarioArgs,
-    reset::ResetArgs, schema::SchemaArgs,serve::ServeArgs
+    reset::ResetArgs, serve::ServeArgs,
 };
 
 use clap::{Parser, Subcommand};
@@ -20,7 +20,6 @@ pub struct Cli {
 pub enum Command {
     Serve(ServeArgs),
     Init(InitArgs),
-    Schema(SchemaArgs),
     New(NewScenarioArgs),
     Activate(ActivateArgs),
     // List(ListArgs),

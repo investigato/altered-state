@@ -13,17 +13,21 @@ use crate::{
 use colored::Colorize;
 use indicatif::ProgressBar;
 use itertools::Itertools;
-use ldap3::adapters::{Adapter, EntriesOnly};
-use ldap3::{LdapConnAsync, LdapConnSettings, adapters::PagedResults, controls::RawControl};
-use ldap3::{Scope, SearchEntry};
+
+use ldap3::{
+    LdapConnAsync, LdapConnSettings, Scope, SearchEntry,
+    adapters::PagedResults,
+    adapters::{Adapter, EntriesOnly},
+    controls::RawControl,
+};
 use log::{debug, error, info, trace};
 use oxicode::{Decode, Encode};
 use serde_json::json;
 use std::collections::HashMap;
 use std::error::Error;
-
 use std::path::Path;
 use std::process;
+
 // #[derive(Clone, Debug)]
 // pub struct LdapOptions {
 //     pub domain: String,
@@ -342,7 +346,7 @@ pub async fn get_all_naming_contexts(
             for result in rs {
                 let result_attrs: HashMap<String, Vec<String>> = result.attrs;
 
-                for (_key, value) in &result_attrs {
+                for value in result_attrs.values() {
                     for naming_context in value {
                         debug!("namingContext found: {}", &naming_context.bold().green());
                         naming_contexts.push(naming_context.to_string());
@@ -477,7 +481,7 @@ pub async fn prepare_results_from_source<S: EntrySource>(
 // for `total_objects`, the total number of objects may not be known if the ldap query was never run
 // (e.g run was resumed from cached results)
 pub fn parse_result_type_from_source(
-    domain: &str,
+    _domain: &str,
     export_path: &Path,
     update_schema_file: bool,
     schema_output_path: &Path,
@@ -572,25 +576,25 @@ pub fn parse_result_type_from_source(
     Ok(results)
 }
 
-/// Function to parse and replace value for unknown object.
-pub fn parse_unknown(result: SearchEntry, _domain: &str) -> serde_json::value::Value {
-    let _result_dn = result.dn.to_uppercase();
-    let _result_attrs: HashMap<String, Vec<String>> = result.attrs;
-    let _result_bin: HashMap<String, Vec<Vec<u8>>> = result.bin_attrs;
+// /// Function to parse and replace value for unknown object.
+// pub fn parse_unknown(result: SearchEntry, _domain: &str) -> serde_json::value::Value {
+//     let _result_dn = result.dn.to_uppercase();
+//     let _result_attrs: HashMap<String, Vec<String>> = result.attrs;
+//     let _result_bin: HashMap<String, Vec<Vec<u8>>> = result.bin_attrs;
 
-    let unknown_json = json!({
-        "unknown": null,
-    });
+//     let unknown_json = json!({
+//         "unknown": null,
+//     });
 
-    // Debug for current object
-    trace!("Parse Unknown object: {}", _result_dn);
-    // for (key, value) in &_result_attrs {
-    //    println!("  {:?}:{:?}", key, value);
-    // }
-    // //trace result bin
-    // for (key, value) in &_result_bin {
-    //    println!("  {:?}:{:?}", key, value);
-    // }
+//     // Debug for current object
+//     trace!("Parse Unknown object: {}", _result_dn);
+//     // for (key, value) in &_result_attrs {
+//     //    println!("  {:?}:{:?}", key, value);
+//     // }
+//     // //trace result bin
+//     // for (key, value) in &_result_bin {
+//     //    println!("  {:?}:{:?}", key, value);
+//     // }
 
-    unknown_json
-}
+//     unknown_json
+// }

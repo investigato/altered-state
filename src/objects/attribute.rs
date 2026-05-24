@@ -182,25 +182,25 @@ impl SchemaEntry {
     }
 }
 
-type SchemaMap = HashMap<String, [u8; 16]>;
-type PropertySetMap = HashMap<[u8; 16], Vec<[u8; 16]>>;
+// type SchemaMap = HashMap<String, [u8; 16]>;
+// type PropertySetMap = HashMap<[u8; 16], Vec<[u8; 16]>>;
 
-pub fn build_maps(entries: Vec<SchemaEntry>) -> (SchemaMap, PropertySetMap) {
-    let mut schema_map: HashMap<String, [u8; 16]> = HashMap::new();
-    let mut property_set_map: HashMap<[u8; 16], Vec<[u8; 16]>> = HashMap::new();
+// pub fn build_maps(entries: Vec<SchemaEntry>) -> (SchemaMap, PropertySetMap) {
+//     let mut schema_map: HashMap<String, [u8; 16]> = HashMap::new();
+//     let mut property_set_map: HashMap<[u8; 16], Vec<[u8; 16]>> = HashMap::new();
 
-    for entry in entries {
-        if let Some(guid) = entry.schema_id_guid {
-            schema_map.insert(entry.admin_display_name.to_lowercase(), guid);
+//     for entry in entries {
+//         if let Some(guid) = entry.schema_id_guid {
+//             schema_map.insert(entry.admin_display_name.to_lowercase(), guid);
 
-            if let Some(prop_set_guid) = entry.attribute_security_guid {
-                property_set_map
-                    .entry(prop_set_guid)
-                    .or_default()
-                    .push(guid);
-            }
-        }
-    }
+//             if let Some(prop_set_guid) = entry.attribute_security_guid {
+//                 property_set_map
+//                     .entry(prop_set_guid)
+//                     .or_default()
+//                     .push(guid);
+//             }
+//         }
+//     }
 
-    (schema_map, property_set_map)
-}
+//     (schema_map, property_set_map)
+// }

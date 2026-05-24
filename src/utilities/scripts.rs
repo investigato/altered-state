@@ -1,7 +1,7 @@
-use crate::objects::remediation::{CommandType, RemediationCommand};
+use crate::objects::remediation::RemediationCommand;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 //     public static void WritePs1(List<RemediationCommand> commands, string cleanupScriptPath,
 //         string cleanupScriptFile)
@@ -68,6 +68,7 @@ pub fn write_ps1(commands: &[RemediationCommand], cleanup_script_file: &Path) {
 }
 //     public static void WriteToConsole(List<RemediationCommand> commands)
 //     {
+#[allow(dead_code)]
 pub fn write_to_console(commands: &[RemediationCommand]) {
     //
     //         Console.WriteLine("# AD Remediation Commands (dry run)");
@@ -139,4 +140,3 @@ pub fn execute_script(script_path: &str) {
         );
     }
 }
-

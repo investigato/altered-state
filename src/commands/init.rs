@@ -6,7 +6,6 @@ use crate::{
 };
 use anyhow::Result;
 use clap::Args;
-use std::path::Path;
 
 #[derive(Debug, Args)]
 pub struct InitArgs {
@@ -110,7 +109,7 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
     // get the schema and write it out to have the system_attributes.yaml file created with the default system attributes
     // AdExporter.ExportSchema(retconConfig);
     // generate ldap options from config file
-    
+
     let ldap_options = generate_ldap_options_from_config(&_config);
 
     let mut ldap_results = Vec::new();

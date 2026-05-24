@@ -13,12 +13,6 @@ pub struct ScenarioConfig {
     pub hooks: Vec<ScenarioHookConfig>,
     pub exclusions: Vec<ExclusionConfig>,
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScenarioResponseDto {
-    pub name: String,
-    pub description: Option<String>,
-    pub image_path: Option<String>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioHookConfig {

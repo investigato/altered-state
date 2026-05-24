@@ -2,8 +2,9 @@ use crate::{
     cleanup_crew::serve::{ServeRequest, ServerState, run as server_run},
     config::app::AppConfig,
     config::scenarios::ScenarioConfig,
+    models::scenario::ScenarioState,
 };
-use an_app_has_no_name::ScenarioState;
+
 use anyhow::Result;
 use clap::Args;
 use std::sync::{Arc, RwLock};

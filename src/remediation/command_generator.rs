@@ -66,15 +66,11 @@ pub fn generate_commands_for_action(
 ) -> Vec<RemediationCommand> {
     match action.action {
         ActionType::Create => generate_create_commands(action, attribute_control_set),
-        ActionType::Reanimate => {
-            generate_reanimate_commands(action, naming_contexts, attribute_control_set)
-        }
+        ActionType::Reanimate => generate_reanimate_commands(action, attribute_control_set),
         ActionType::Delete => {
             generate_delete_commands(action, naming_contexts, attribute_control_set)
         }
-        ActionType::Modify => {
-            generate_modify_commands(action, naming_contexts, attribute_control_set)
-        }
+        ActionType::Modify => generate_modify_commands(action, attribute_control_set),
     }
 }
 
@@ -394,7 +390,6 @@ fn escape_dn_component(value: &str) -> String {
 }
 fn generate_modify_commands(
     action: RemediationAction,
-    naming_contexts: &LdapNamingContexts,
     attribute_control_set: &AttributeControlSet,
 ) -> Vec<RemediationCommand> {
     let mut commands: Vec<RemediationCommand> = Vec::new();
@@ -419,7 +414,6 @@ fn generate_modify_commands(
 //         if (target == null) return commands;
 fn generate_reanimate_commands(
     action: RemediationAction,
-    naming_contexts: &LdapNamingContexts,
     attribute_control_set: &AttributeControlSet,
 ) -> Vec<RemediationCommand> {
     let mut commands: Vec<RemediationCommand> = Vec::new();

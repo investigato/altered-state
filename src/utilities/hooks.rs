@@ -1,5 +1,9 @@
 use crate::config::scenarios::{ScenarioHookConfig, ScenarioHookType};
-use std::{path::{PathBuf,Path}, process::Command};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
+#[allow(dead_code)]
 pub struct HookOutput {
     pub hook_type: ScenarioHookType,
     pub path: PathBuf,
@@ -58,7 +62,6 @@ pub fn execute_hooks(
     }
     Ok(outputs)
 }
-
 
 pub fn execute_script_with_arguments(
     script_path: &str,

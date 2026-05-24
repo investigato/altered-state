@@ -19,6 +19,102 @@ because some things are better when learned together. i wanted one machine that 
 
 connects to your DC over LDAP (Kerberos/GSSAPI), snapshots the full directory to a compressed binary, and tracks it by name. when you're ready to switch scenarios or reset, it diffs current AD state against the target snapshot and generates the PowerShell to close the gap.
 
+## images
+
+<div align=center>
+  <img height="150" alt="default" src="https://github.com/investigato/altered-state/blob/main/assets/default_active.png" />
+</div>
+
+```sh
+certipy find -dc-ip 192.168.1.1 -u a.broderick@example.com -dc-host dc01.example.com -p 'Password' -stdout -enabled -vulnerable
+Certipy v5.0.4 - by Oliver Lyak (ly4k)
+
+[*] Finding certificate templates
+[*] Found 33 certificate templates
+[*] Finding certificate authorities
+[*] Found 1 certificate authority
+[*] Found 11 enabled certificate templates
+[*] Finding issuance policies
+[*] Found 33 issuance policies
+[*] Found 0 OIDs linked to templates
+[*] Retrieving CA configuration for 'example-DC01-CA' via RRP
+[*] Successfully retrieved CA configuration for 'example-DC01-CA'
+[*] Checking web enrollment for CA 'example-DC01-CA' @ 'DC01.example.com'
+[!] Error checking web enrollment: [Errno 111] Connection refused
+[!] Use -debug to print a stacktrace
+[!] Error checking web enrollment: [Errno 111] Connection refused
+[!] Use -debug to print a stacktrace
+[*] Enumeration output:
+Certificate Authorities
+  0
+    CA Name                             : example-DC01-CA
+    DNS Name                            : DC01.example.com
+    Certificate Subject                 : CN=example-DC01-CA, DC=example, DC=com
+    Certificate Serial Number           : 283955EB8CFA60964D4F3763C9A7ED01
+    Certificate Validity Start          : 2026-05-22 19:17:20+00:00
+    Certificate Validity End            : 2031-05-22 19:27:19+00:00
+    Web Enrollment
+      HTTP
+        Enabled                         : False
+      HTTPS
+        Enabled                         : False
+    User Specified SAN                  : Disabled
+    Request Disposition                 : Issue
+    Enforce Encryption for Requests     : Enabled
+    Active Policy                       : CertificateAuthority_MicrosoftDefault.Policy
+    Permissions
+      Owner                             : example.com\Administrators
+      Access Rights
+        ManageCa                        : example.com\Administrators
+                                          example.com\Domain Admins
+                                          example.com\Enterprise Admins
+        ManageCertificates              : example.com\Administrators
+                                          example.com\Domain Admins
+                                          example.com\Enterprise Admins
+        Enroll                          : example.com\Authenticated Users
+Certificate Templates                   : [!] Could not find any certificate templates
+```
+
+<div align=center>
+  <img height="150" alt="esc6" src="https://github.com/investigato/altered-state/blob/main/assets/esc6_active.png" />
+</div>
+
+```sh
+certipy find -dc-ip 192.168.1.1 -u a.broderick@example.com -dc-host dc01.example.com -p 'Password' 
+[*] Enumeration output:
+Certificate Authorities
+  0
+    CA Name                             : example-DC01-CA
+    DNS Name                            : DC01.example.com
+    Certificate Subject                 : CN=example-DC01-CA, DC=example, DC=com
+    Certificate Serial Number           : 283955EB8CFA60964D4F3763C9A7ED01
+    Certificate Validity Start          : 2026-05-22 19:17:20+00:00
+    Certificate Validity End            : 2031-05-22 19:27:19+00:00
+    Web Enrollment
+      HTTP
+        Enabled                         : False
+      HTTPS
+        Enabled                         : False
+    User Specified SAN                  : Enabled   <-- CHECK IT OUT
+    Request Disposition                 : Issue
+    Enforce Encryption for Requests     : Enabled
+    Active Policy                       : CertificateAuthority_MicrosoftDefault.Policy
+    Permissions
+      Owner                             : example.com\Administrators
+      Access Rights
+        ManageCa                        : example.com\Administrators
+                                          example.com\Domain Admins
+                                          example.com\Enterprise Admins
+        ManageCertificates              : example.com\Administrators
+                                          example.com\Domain Admins
+                                          example.com\Enterprise Admins
+        Enroll                          : example.com\Authenticated Users
+    [!] Vulnerabilities
+      ESC6                              : Enrollee can specify SAN.
+    [*] Remarks
+      ESC6                              : Other prerequisites may be required for this to be exploitable. See the wiki for more details.
+```
+
 ## build
 
 ```powershell

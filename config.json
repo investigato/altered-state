@@ -1,9 +1,0 @@
-{
-  "domain": "certifiable.hsm",
-  "hostname": "dc01.certifiable.hsm",
-  "never_touch_these_attributes": [
-    "certificatetemplates",
-    "cn",
-    "objectcategory"
-  ]
-}

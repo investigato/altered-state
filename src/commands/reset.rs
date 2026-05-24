@@ -4,6 +4,7 @@ use clap::Args;
 use crate::{
     cleanup_crew::reset::{ResetRequest, run as reset_scenario},
     config::app::AppConfig,
+    models::scenario::ScenarioState,
 };
 #[derive(Debug, Args)]
 pub struct ResetArgs {
@@ -12,13 +13,22 @@ pub struct ResetArgs {
 }
 
 pub async fn run(_args: ResetArgs, _config: AppConfig) -> Result<()> {
-    let target_name = _args.name;
-    if target_name.is_empty() {
-        println!("Target scenario name cannot be empty.");
-        return Ok(());
+    // if _args.name is empty, read the _config.scenario_state and use that as the target name, otherwise use _args.name
+    let target_name: Option<String>;
+    if !_args.name.is_empty() {
+        target_name = Some(_args.name);
+    } else {
+        let scenario_state = ScenarioState::load(&_config.paths.scenario_state_file).await;
+        target_name = Some(
+            scenario_state
+                .active_scenario
+                .clone()
+                .map_or_else(|| "default".to_string(), |s| s.scenario),
+        );
     }
+
     let request = ResetRequest {
-        scenario: target_name,
+        scenario: target_name.unwrap_or_else(|| "default".to_string()),
         state: Some("baseline".to_string()),
     };
     reset_scenario(_config, request).await

@@ -22,7 +22,6 @@ use ldap3::{
 };
 use log::{debug, error, info, trace};
 use oxicode::{Decode, Encode};
-use serde_json::json;
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
@@ -542,8 +541,12 @@ pub fn parse_result_type_from_source(
     // build attribute control sets for later use in ACL parsing and value parsing
     // construct config.paths.scenarios_directory + "/schema_attributes.yaml"
 
-    let attribute_control_set =
-        build_attribute_control_sets(&schema_entries, attributes_to_always_ignore, schema_output_path, update_schema_file);
+    let attribute_control_set = build_attribute_control_sets(
+        &schema_entries,
+        attributes_to_always_ignore,
+        schema_output_path,
+        update_schema_file,
+    );
 
     // let (schema_map, property_set_map) = build_maps(schema_entries);
     // init_maps(schema_map, property_set_map);

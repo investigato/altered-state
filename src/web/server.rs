@@ -13,7 +13,8 @@ pub async fn run(config: AppConfig, state: Arc<RwLock<ServerState>>, port: u16) 
         .merge(api::router(config, state));
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
-
+    println!("Web server listening on http://0.0.0.0:{port}");
+    println!("Press ctrl-c to exit");
     axum::serve(listener, app).await?;
 
     Ok(())

@@ -20,6 +20,7 @@ pub struct AllowedAttribute {
 
 pub fn build_attribute_control_sets(
     entries: &[SchemaEntry],
+    attributes_to_always_ignore: &[String],
     schema_output_path: &std::path::Path,
     update_schema_file: bool,
 ) -> AttributeControlSet {
@@ -33,12 +34,11 @@ pub fn build_attribute_control_sets(
 
         let name = entry.ldap_display_name.to_lowercase();
 
-        let _these_must_be_ignored_to_avoid_fucking_things_up =
-            ["certificatetemplates", "objectcategory", "cn"];
+
         if entry.system_only
             || entry.is_constructed()
             || entry.is_not_replicated()
-            || _these_must_be_ignored_to_avoid_fucking_things_up.contains(&name.as_str())
+            || attributes_to_always_ignore.contains(&name)
         {
             system_attributes.insert(name);
         } else {

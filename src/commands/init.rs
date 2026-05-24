@@ -55,7 +55,7 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
 
     // if (templateConfigPath == null)
     // {
-    let scenario_config = match _args.template_configuration {
+    let mut scenario_config = match _args.template_configuration {
         None => ScenarioConfig {
             name: target_scenario_name,
             description: Some(target_scenario_description),
@@ -89,6 +89,11 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
                 let template_image_path = std::path::PathBuf::from(template_image);
                 ScenarioConfig::copy_image_to_directory(
                     &template_image_path,
+                    &_config.paths.images_directory,
+                )
+                .map_err(|e| anyhow::anyhow!(e))?;
+                ScenarioConfig::copy_image_to_directory(
+                    &template_image_path,
                     &target_scenario_directory,
                 )
                 .map_err(|e| anyhow::anyhow!(e))?;
@@ -106,6 +111,19 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
             }
         }
     };
+
+    scenario_config.save_to_path(
+        &target_scenario_directory
+            .join("config.json")
+            .to_string_lossy(),
+    )?;
+    scenario_config
+        .finalize_paths(
+            &target_scenario_directory,
+            &_config.paths.images_directory,
+            &target_scenario_directory.join("config.json"),
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to finalize scenario config paths: {}", e))?;
     // get the schema and write it out to have the system_attributes.yaml file created with the default system attributes
     // AdExporter.ExportSchema(retconConfig);
     // generate ldap options from config file
@@ -127,6 +145,7 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
         &target_export_path,
         true,
         &_config.paths.schema_attributes_file,
+        &_config.never_touch_these_attributes,
         Some(total),
     )
     .await
@@ -143,12 +162,21 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
 
     // activate it
     let mut scenario_state = ScenarioState::load(&_config.paths.scenario_state_file).await;
-    let scenario_ref = ScenarioRef {
+    let active_scenario_ref = ScenarioRef {
         scenario: scenario_config.name.clone(),
-        state_file: format!("{}.bin", target_export_type.to_string().to_lowercase()),
+        state_file: target_scenario_directory
+            .join(format!(
+                "{}.bin",
+                target_export_type.to_string().to_lowercase()
+            ))
+            .to_string_lossy()
+            .to_string(),
     };
+
     // update the state file
-    scenario_state.set_active_scenario(scenario_ref).await;
+    scenario_state
+        .set_active_scenario(active_scenario_ref)
+        .await;
     scenario_state
         .save(&_config.paths.scenario_state_file)
         .map_err(|e| anyhow::anyhow!("Failed to update scenario state file: {}", e))?;

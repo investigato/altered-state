@@ -1,4 +1,3 @@
-mod build;
 pub(crate) mod cleanup_crew;
 pub(crate) mod cli;
 pub(crate) mod commands;

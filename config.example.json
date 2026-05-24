@@ -1,6 +1,6 @@
 {
-  "domain": "certifiable.hsm",
-  "hostname": "dc01.certifiable.hsm",
+  "domain": "example.com",
+  "hostname": "dc01.example.com",
   "never_touch_these_attributes": [
     "certificatetemplates",
     "cn",

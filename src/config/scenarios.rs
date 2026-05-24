@@ -182,12 +182,12 @@ impl ScenarioConfig {
 
     pub fn copy_image_to_directory(
         image_path: &PathBuf,
-        target_directory: &Path,
+        web_directory: &Path,
     ) -> Result<(), String> {
         let file_name = image_path
             .file_name()
             .ok_or_else(|| format!("Invalid image path: {:?}", image_path))?;
-        let target_path = target_directory.join(file_name);
+        let target_path = web_directory.join(file_name);
         std::fs::copy(image_path, &target_path).map_err(|e| {
             format!(
                 "Failed to copy image from {:?} to {:?}: {}",
@@ -197,8 +197,39 @@ impl ScenarioConfig {
         Ok(())
     }
     pub fn save_to_path(&self, path: &str) -> Result<(), std::io::Error> {
+        // need to update the paths inside the config to be relative to the scenario directory for portability, but first validate that they exist and get their absolute paths
+        // if image, is the path set to the web_directory
         let config_str =
             serde_json::to_string_pretty(self).map_err(|e| std::io::Error::other(e.to_string()))?;
         std::fs::write(path, config_str)
+    }
+    pub fn finalize_paths(
+        &mut self,
+        hooks_dir: &Path, // target_scenario_directory
+        image_dir: &Path, // resolved web_directory
+        save_path: &Path, // target_scenario_config_path
+    ) -> Result<(), String> {
+        for hook in &mut self.hooks {
+            let file_name = hook
+                .path
+                .file_name()
+                .ok_or_else(|| format!("Invalid hook path: {:?}", hook.path))?;
+            let target_path = hooks_dir.join(file_name);
+            hook.path = target_path;
+        }
+
+        if let Some(image_path) = &self.image_path {
+            let image_path_buf = PathBuf::from(image_path);
+            let file_name = image_path_buf
+                .file_name()
+                .ok_or_else(|| format!("Invalid image path: {:?}", image_path_buf))?;
+            let target_path = image_dir.join(file_name);
+            self.image_path = Some(target_path.to_string_lossy().to_string());
+        }
+
+        self.save_to_path(save_path.to_str().unwrap())
+            .map_err(|e| format!("Failed to save scenario config with finalized paths: {}", e))?;
+
+        Ok(())
     }
 }

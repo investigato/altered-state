@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "an-app-has-no-name"
+name = "altered-state"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -24,12 +24,12 @@ dependencies = [
  "clap-verbosity-flag",
  "colored",
  "config",
- "fs_extra",
  "hex",
  "indicatif",
  "itertools 0.14.0",
  "ldap3",
  "log",
+ "omnicopy_to_output",
  "oxicode",
  "regex",
  "serde",
@@ -239,6 +239,12 @@ checksum = "cdd35008169921d80bc60d3d0ab416eecb028c4cd653352907921d95084790be"
 dependencies = [
  "hybrid-array",
 ]
+
+[[package]]
+name = "build-target"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "832133bbabbbaa9fbdba793456a2827627a7d2b8fb96032fa1e7666d7895832b"
 
 [[package]]
 name = "bumpalo"
@@ -1347,6 +1353,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "omnicopy_to_output"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "149fe2e70edd92a033bbb1686ad070aa8cb0de3375812b5575e5877d27afe6af"
+dependencies = [
+ "anyhow",
+ "build-target",
+ "fs_extra",
+ "project-root",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1576,6 +1594,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "project-root"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bccbff07d5ed689c4087d20d7307a52ab6141edeedf487c3876a55b86cf63df"
+
+[[package]]
 name = "quote"
 version = "1.0.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1785,9 +1809,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.149"
+version = "1.0.150"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86"
+checksum = "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9"
 dependencies = [
  "itoa",
  "memchr",

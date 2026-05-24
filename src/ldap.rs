@@ -438,6 +438,7 @@ pub async fn prepare_results_from_source<S: EntrySource>(
     export_path: &Path,
     update_schema_file: bool,
     source_output_path: &Path,
+    attributes_to_always_ignore: &[String],
     total_objects: Option<usize>,
 ) -> Result<ADResults, Box<dyn Error>> {
     let ad_results = parse_result_type_from_source(
@@ -446,6 +447,7 @@ pub async fn prepare_results_from_source<S: EntrySource>(
         update_schema_file,
         source_output_path,
         source,
+        attributes_to_always_ignore,
         total_objects,
     )?;
 
@@ -486,6 +488,7 @@ pub fn parse_result_type_from_source(
     update_schema_file: bool,
     schema_output_path: &Path,
     source: impl EntrySource,
+    attributes_to_always_ignore: &[String],
     total_objects: Option<usize>,
 ) -> Result<ADResults, Box<dyn Error>> {
     let mut results = ADResults::default();
@@ -540,7 +543,7 @@ pub fn parse_result_type_from_source(
     // construct config.paths.scenarios_directory + "/schema_attributes.yaml"
 
     let attribute_control_set =
-        build_attribute_control_sets(&schema_entries, schema_output_path, update_schema_file);
+        build_attribute_control_sets(&schema_entries, attributes_to_always_ignore, schema_output_path, update_schema_file);
 
     // let (schema_map, property_set_map) = build_maps(schema_entries);
     // init_maps(schema_map, property_set_map);

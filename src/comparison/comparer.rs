@@ -65,10 +65,16 @@ pub async fn compare_states(
                                 action: ActionType::Delete,
                                 target: Some(target.clone()),
                                 current: Some(current.clone()),
-                                last_known_parent: target
-                                    .attributes
-                                    .get("LastKnownParent")
-                                    .and_then(|v| v.first().cloned()),
+                                // have to make sure we check case insensitive for this attribute, because sometimes it comes back as lastKnownParent and sometimes LastKnownParent and I hate it
+                                last_known_parent: target.attributes.iter().find_map(
+                                    |(key, value)| {
+                                        if key.eq_ignore_ascii_case("LastKnownParent") {
+                                            value.first().cloned()
+                                        } else {
+                                            None
+                                        }
+                                    },
+                                ),
                             });
                     } else {
                         actions
@@ -220,17 +226,15 @@ fn reconcile_tombstones(actions: Vec<RemediationAction>) -> Vec<RemediationActio
                 action: ActionType::Delete,
                 target: tombstone_target.cloned(),
                 current: matching_delete.current.clone(),
+                // same thing here, check for case insensitive lastKnownParent attribute
                 last_known_parent: tombstone_target.and_then(|target| {
-                    target
-                        .attributes
-                        .get("lastknownparent")
-                        .and_then(|value| value.first().cloned())
-                        .or_else(|| {
-                            target
-                                .attributes
-                                .get("LastKnownParent")
-                                .and_then(|value| value.first().cloned())
-                        })
+                    target.attributes.iter().find_map(|(key, value)| {
+                        if key.eq_ignore_ascii_case("LastKnownParent") {
+                            value.first().cloned()
+                        } else {
+                            None
+                        }
+                    })
                 }),
             });
         }

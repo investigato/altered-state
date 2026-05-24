@@ -7,11 +7,11 @@ use std::path::{Path, PathBuf};
 pub struct PathsConfig {
     pub actions_script_file: PathBuf,
     pub images_directory: PathBuf,
+    pub web_directory: PathBuf,
     pub scenarios_directory: PathBuf,
     pub scenario_state_file: PathBuf,
     pub schema_attributes_file: PathBuf,
     pub naming_contexts_file: PathBuf,
-    pub working_directory: PathBuf,
     pub temp_directory: PathBuf,
 }
 
@@ -19,7 +19,7 @@ impl Default for PathsConfig {
     fn default() -> Self {
         let exe_path = std::env::current_exe().expect("Failed to get current executable path");
         let base_dir = exe_path.parent().expect("Failed to get parent directory");
-        let web_directory = base_dir.join("web").join("wwwroot");
+        let web_directory = base_dir.join("wwwroot");
         let temp_directory = base_dir.join("temp");
         let actions_script_file = temp_directory.join("actions.ps1");
         let images_directory = web_directory.join("images");
@@ -28,15 +28,14 @@ impl Default for PathsConfig {
         let scenario_state_path = scenarios_directory.join(&scenario_state_file);
         let schema_attributes_file = scenarios_directory.join("schema_attributes.json");
         let naming_contexts_file = scenarios_directory.join("naming_contexts.json");
-        let working_directory = base_dir.join("working");
         PathsConfig {
             actions_script_file,
             images_directory,
+            web_directory,
             scenarios_directory,
             scenario_state_file: scenario_state_path,
             schema_attributes_file,
             naming_contexts_file,
-            working_directory,
             temp_directory,
         }
     }
@@ -71,7 +70,7 @@ impl PathsConfig {
                 .map_err(|e| std::io::Error::other(e.to_string()))?;
             std::fs::write(&self.naming_contexts_file, contexts_str)?;
         }
-        create_directory_if_not_exists(&self.working_directory)?;
+        create_directory_if_not_exists(&self.web_directory)?;
         create_directory_if_not_exists(&self.temp_directory)?;
         Ok(())
     }

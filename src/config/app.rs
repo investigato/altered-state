@@ -10,6 +10,8 @@ pub struct AppConfig {
     pub domain: String,
     pub hostname: String,
     #[serde(default)]
+    pub never_touch_these_attributes: Vec<String>,
+    #[serde(default)]
     pub paths: PathsConfig,
     #[serde(default)]
     pub logging: LoggingConfig,

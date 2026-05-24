@@ -12,7 +12,7 @@ use crate::{
     objects::directory_objects::read_directory_objects_from_bin_file,
     remediation::command_generator::generate_commands,
     utilities::hooks::execute_hooks,
-    utilities::scripts::{execute_script, write_ps1,},
+    utilities::scripts::{execute_script, write_ps1},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +100,7 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
         &current_export_path,
         false,
         current_schema_output_path,
+        &config.never_touch_these_attributes,
         Some(total),
     )
     .await

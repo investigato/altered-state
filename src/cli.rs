@@ -5,7 +5,7 @@ use crate::commands::{
 
 use clap::{Parser, Subcommand};
 #[derive(Debug, Parser)]
-#[command(name = "an-app-has-no-name")]
+#[command(name = "altered-state")]
 #[command(about = "Clean up your mess")]
 pub struct Cli {
     #[arg(long, global = true)]

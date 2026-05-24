@@ -95,6 +95,7 @@ pub async fn run(_args: CompareArgs, _config: AppConfig) -> Result<()> {
         &current_export_path,
         false,
         &current_schema_output_path,
+        &_config.never_touch_these_attributes,
         Some(total),
     )
     .await

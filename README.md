@@ -3,7 +3,7 @@
 you broke the domain. altered-state doesn't care: snapshot, diff, fix, done. reset...restart...replay!
 
 <div align=center>
-  <img height="150" alt="logo" src="https://github.com/investigato/altered-state/blob/main/assets/explain_ad.png" />
+  <img height="450" alt="logo" src="https://github.com/investigato/altered-state/blob/main/assets/explain-ad.png" />
 </div>
 
 > functional, opinionated, and not done. use accordingly.
@@ -22,7 +22,7 @@ connects to your DC over LDAP (Kerberos/GSSAPI), snapshots the full directory to
 ## images
 
 <div align=center>
-  <img height="150" alt="default" src="https://github.com/investigato/altered-state/blob/main/assets/default_active.png" />
+  <img height="450" alt="default" src="https://github.com/investigato/altered-state/blob/main/assets/default_active.png" />
 </div>
 
 ```sh
@@ -76,7 +76,7 @@ Certificate Templates                   : [!] Could not find any certificate tem
 ```
 
 <div align=center>
-  <img height="150" alt="esc6" src="https://github.com/investigato/altered-state/blob/main/assets/esc6_active.png" />
+  <img height="450" alt="esc6" src="https://github.com/investigato/altered-state/blob/main/assets/esc6_active.png" />
 </div>
 
 ```sh

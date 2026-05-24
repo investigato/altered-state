@@ -6,10 +6,7 @@ use std::process::Command;
 //     public static void WritePs1(List<RemediationCommand> commands, string cleanupScriptPath,
 //         string cleanupScriptFile)
 //     {
-pub fn write_ps1(
-    commands: &[RemediationCommand],
-    cleanup_script_file: &Path,
-) {
+pub fn write_ps1(commands: &[RemediationCommand], cleanup_script_file: &Path) {
     //         var filePath = Path.Combine(cleanupScriptPath, cleanupScriptFile);
     let file_path = cleanup_script_file.to_path_buf();
     //         // make sure the damn file exists before we try to write to it
@@ -100,10 +97,7 @@ pub fn write_to_console(commands: &[RemediationCommand]) {
 //     {
 pub fn execute_script(script_path: &str) {
     //         logger.Info($"Executing script: {scriptPath} with PowerShell executable: {psExecutable}");
-    println!(
-        "Executing script: {} with PowerShell",
-        script_path
-    );
+    println!("Executing script: {} with PowerShell", script_path);
     //
     //         var process = new Process
     //         {
@@ -126,7 +120,13 @@ pub fn execute_script(script_path: &str) {
     // }
 
     let output = process
-        .args(["-ExecutionPolicy", "Bypass", "-NonInteractive", "-File", script_path])
+        .args([
+            "-ExecutionPolicy",
+            "Bypass",
+            "-NonInteractive",
+            "-File",
+            script_path,
+        ])
         .output()
         .expect("Failed to execute script");
     if output.status.success() {
@@ -139,3 +139,4 @@ pub fn execute_script(script_path: &str) {
         );
     }
 }
+

@@ -1,5 +1,6 @@
-use crate::models::ldap::LdapNamingContexts;
+use crate::{models::ldap::LdapNamingContexts, storage::attributes::AttributeControlSet};
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -54,10 +55,9 @@ impl PathsConfig {
         }
         // create the schema_attributes.json file if it doesn't exist and fill with empty AttributeControlSet JSON
         if !self.schema_attributes_file.exists() {
-            let attribute_control_set = crate::storage::attributes::AttributeControlSet {
-                system_attributes: std::collections::HashSet::new(),
-                allow_list_attributes: std::collections::HashSet::new(),
-                value_kinds: std::collections::HashMap::new(),
+            let attribute_control_set = AttributeControlSet {
+                system_attributes: HashSet::new(),
+                allow_list: HashMap::new(),
             };
             let attributes_str = serde_json::to_string_pretty(&attribute_control_set)
                 .map_err(|e| std::io::Error::other(e.to_string()))?;

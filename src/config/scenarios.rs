@@ -28,7 +28,7 @@ pub struct ScenarioHookConfig {
     pub continue_on_error: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ScenarioHookType {
     PreAction,
     Cleanup,
@@ -71,6 +71,16 @@ impl ScenarioConfig {
             }
         }
         Ok(scenarios)
+    }
+    pub fn load_for_scenario(scenarios_dir: &Path, scenario_name: &str) -> Result<Self, String> {
+        let scenario_path = scenarios_dir.join(scenario_name).join("config.json");
+        if !scenario_path.exists() {
+            return Err(format!(
+                "Scenario config not found for scenario '{}'",
+                scenario_name
+            ));
+        }
+        Self::load_from_path(scenario_path.to_str().unwrap())
     }
     pub fn validate(&mut self, path: &str) -> Result<(), String> {
         if self.name.trim().is_empty() {

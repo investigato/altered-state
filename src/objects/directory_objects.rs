@@ -35,8 +35,8 @@ impl DirectoryObject {
         for (key, values) in &entry.attrs {
             let normalized_key = key.to_lowercase();
             if attribute_control_set
-                .allow_list_attributes
-                .contains(&normalized_key)
+                .allow_list
+                .contains_key(&normalized_key)
             {
                 attributes
                     .entry(normalized_key)
@@ -52,8 +52,8 @@ impl DirectoryObject {
                 continue;
             }
             if attribute_control_set
-                .allow_list_attributes
-                .contains(&normalized_key)
+                .allow_list
+                .contains_key(&normalized_key)
             {
                 bin_attributes
                     .entry(normalized_key)

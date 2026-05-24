@@ -16,7 +16,7 @@ pub struct ScenarioState {
 
 impl ScenarioState {
     // load or create new if file not found/error
-    pub fn load(path: &Path) -> Self {
+    pub async fn load(path: &Path) -> Self {
         if path.exists() {
             let state_str = std::fs::read_to_string(path).unwrap_or_else(|_| "{}".to_string());
             from_str(&state_str).unwrap_or_else(|_| ScenarioState::new())
@@ -44,7 +44,7 @@ impl ScenarioState {
             previous_scenario: None,
         }
     }
-    pub fn set_active_scenario(&mut self, scenario: ScenarioRef) {
+    pub async fn set_active_scenario(&mut self, scenario: ScenarioRef) {
         self.previous_scenario = self.active_scenario.clone();
         self.active_scenario = Some(scenario);
     }
@@ -64,7 +64,7 @@ impl Default for ScenarioState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ScenarioRef {
     pub scenario: String,
     pub state_file: String,

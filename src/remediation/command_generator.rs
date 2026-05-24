@@ -1,9 +1,10 @@
 use crate::models::ldap::LdapNamingContexts;
 use crate::objects::{
-    attribute,
     directory_objects::DirectoryObject,
     remediation::{ActionType, CommandType, RemediationAction, RemediationCommand},
 };
+use crate::storage::attributes::AttributeControlSet;
+use crate::storage::attributes::load_attribute_control_set;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use std::collections::HashMap;
 use std::path::Path;
@@ -19,6 +20,7 @@ use std::path::Path;
 pub fn generate_commands(
     actions: HashMap<String, Vec<RemediationAction>>,
     naming_contexts_file: &Path,
+    schema_attributes_file: &Path,
 ) -> Vec<RemediationCommand> {
     let mut commands: Vec<RemediationCommand> = Vec::new();
     let naming_contexts =
@@ -28,12 +30,21 @@ pub fn generate_commands(
                 naming_contexts_file.display()
             )
         });
+    let _attribute_control_set =
+        load_attribute_control_set(schema_attributes_file).unwrap_or_else(|_| {
+            panic!(
+                "Failed to load attribute control set from {}",
+                schema_attributes_file.display()
+            )
+        });
     for (_, action_list) in actions {
         for action in action_list {
-            let action_commands = generate_commands_for_action(action, &naming_contexts);
+            let action_commands =
+                generate_commands_for_action(action, &naming_contexts, &_attribute_control_set);
             commands.extend(action_commands);
         }
     }
+
     commands
 }
 
@@ -51,12 +62,19 @@ pub fn generate_commands(
 pub fn generate_commands_for_action(
     action: RemediationAction,
     naming_contexts: &LdapNamingContexts,
+    attribute_control_set: &AttributeControlSet,
 ) -> Vec<RemediationCommand> {
     match action.action {
-        ActionType::Create => generate_create_commands(action),
-        ActionType::Reanimate => generate_reanimate_commands(action),
-        ActionType::Delete => generate_delete_commands(action, naming_contexts),
-        ActionType::Modify => generate_modify_commands(action),
+        ActionType::Create => generate_create_commands(action, attribute_control_set),
+        ActionType::Reanimate => {
+            generate_reanimate_commands(action, naming_contexts, attribute_control_set)
+        }
+        ActionType::Delete => {
+            generate_delete_commands(action, naming_contexts, attribute_control_set)
+        }
+        ActionType::Modify => {
+            generate_modify_commands(action, naming_contexts, attribute_control_set)
+        }
     }
 }
 
@@ -90,7 +108,11 @@ pub fn generate_commands_for_action(
 //         return commands;
 //     }
 
-fn generate_create_commands(action: RemediationAction) -> Vec<RemediationCommand> {
+fn generate_create_commands(
+    action: RemediationAction,
+
+    attribute_control_set: &AttributeControlSet,
+) -> Vec<RemediationCommand> {
     let record = match action.target {
         Some(rec) => rec,
         None => return Vec::new(),
@@ -122,6 +144,33 @@ fn generate_create_commands(action: RemediationAction) -> Vec<RemediationCommand
         .or_else(|| record.object_class.first())
         .map(|s| s.as_str())
         .unwrap_or("");
+
+    // if    .object_class
+    //     .iter()
+    //     .any(|c| c.eq_ignore_ascii_case("pkicertificatetemplate"))
+    //     && target.is_none()
+    // {
+    //     let template_name = curr.name.as_deref().unwrap_or("unknown-template");
+    //     commands.push(RemediationCommand {
+    //         command_type: CommandType::Comment,
+    //         command: format!(
+    //             "Object '{}' is a Certificate Template, using CA cmdlets to delete to avoid orphaned CN=Deleted Objects entry",
+    //             escape_dn_component(template_name)
+    //         ),
+    //         description: None,
+    //         object_name: None,
+    //         is_comment: true,
+    //     });
+    //     commands.push(RemediationCommand {
+    //         command_type: CommandType::PowerShell,
+    //         command: format!(
+    //             "Get-CertificationAuthority | Get-CATemplate | Remove-CATemplate -Name '{}' | Set-CATemplate; Remove-ADObject -Identity '{}' -Recursive -Confirm:$false",
+    //             escape_dn_component(template_name), new_dn
+    //         ),
+    //         description: Some("Delete the object".to_string()),
+    //         object_name: None,
+    //         is_comment: false,
+    //     });
     let create_command = format!(
         "New-ADObject -Name '{}' -Type '{}' -Path '{}'",
         escape_dn_component(object_name),
@@ -136,8 +185,32 @@ fn generate_create_commands(action: RemediationAction) -> Vec<RemediationCommand
         object_name: record.name.clone(),
         is_comment: false,
     });
-    let attribute_commands = generate_restore_attribute_commands(&record, None, &record.dn);
+
+    let attribute_commands =
+        generate_restore_attribute_commands(&record, None, &record.dn, attribute_control_set);
     commands.extend(attribute_commands);
+    if object_class.to_lowercase() == "pkicertificatetemplate" {
+        commands.push(RemediationCommand {
+            command_type: CommandType::Comment,
+            command: format!(
+                "Object {} is Certificate Template, using PSPKI CA cmdlets to create and enable",
+                escape_dn_component(object_name)
+            ),
+            description: None,
+            object_name: None,
+            is_comment: true,
+        });
+        commands.push(RemediationCommand {
+                command_type: CommandType::PowerShell,
+                command: format!(
+                    "Get-CertificationAuthority | Get-CATemplate | Add-CATemplate -Name '{}' | Set-CATemplate;",
+                    escape_dn_component(object_name),
+                ),
+                description: Some("Delete the object".to_string()),
+                object_name: None,
+                is_comment: false,
+            });
+    }
     commands
 }
 
@@ -147,6 +220,7 @@ fn generate_create_commands(action: RemediationAction) -> Vec<RemediationCommand
 fn generate_delete_commands(
     action: RemediationAction,
     naming_contexts: &LdapNamingContexts,
+    attribute_control_set: &AttributeControlSet,
 ) -> Vec<RemediationCommand> {
     let mut commands: Vec<RemediationCommand> = Vec::new();
     let target = action.target.as_ref();
@@ -186,8 +260,12 @@ fn generate_delete_commands(
         //         {
         if let (Some(target_obj), Some(current_obj)) = (target, current) {
             let identity_dn = target_obj.dn.clone();
-            let modified_attribute_commands =
-                generate_restore_attribute_commands(target_obj, Some(current_obj), &identity_dn);
+            let modified_attribute_commands = generate_restore_attribute_commands(
+                target_obj,
+                Some(current_obj),
+                &identity_dn,
+                attribute_control_set,
+            );
             commands.extend(modified_attribute_commands);
         }
 
@@ -314,14 +392,22 @@ fn is_probably_sddl_string(bytes: &[u8]) -> Option<&str> {
 fn escape_dn_component(value: &str) -> String {
     value.replace('\n', "\\0A").replace('\r', "\\0D")
 }
-fn generate_modify_commands(action: RemediationAction) -> Vec<RemediationCommand> {
+fn generate_modify_commands(
+    action: RemediationAction,
+    naming_contexts: &LdapNamingContexts,
+    attribute_control_set: &AttributeControlSet,
+) -> Vec<RemediationCommand> {
     let mut commands: Vec<RemediationCommand> = Vec::new();
     let target = match action.target {
         Some(t) => t,
         None => return commands,
     };
-    let attribute_commands =
-        generate_restore_attribute_commands(&target, action.current.as_ref(), &target.dn);
+    let attribute_commands = generate_restore_attribute_commands(
+        &target,
+        action.current.as_ref(),
+        &target.dn,
+        attribute_control_set,
+    );
     commands.extend(attribute_commands);
     commands
 }
@@ -331,7 +417,11 @@ fn generate_modify_commands(action: RemediationAction) -> Vec<RemediationCommand
 //         var commands = new List<RemediationCommand>();
 //         var target = action.Target;
 //         if (target == null) return commands;
-fn generate_reanimate_commands(action: RemediationAction) -> Vec<RemediationCommand> {
+fn generate_reanimate_commands(
+    action: RemediationAction,
+    naming_contexts: &LdapNamingContexts,
+    attribute_control_set: &AttributeControlSet,
+) -> Vec<RemediationCommand> {
     let mut commands: Vec<RemediationCommand> = Vec::new();
     let target = match action.target {
         Some(t) => t,
@@ -395,6 +485,7 @@ fn generate_reanimate_commands(action: RemediationAction) -> Vec<RemediationComm
             .as_ref()
             .map(|c| c.dn.clone())
             .unwrap_or_default(),
+        attribute_control_set,
     );
     commands.extend(attribute_commands);
     commands
@@ -406,6 +497,7 @@ fn generate_restore_attribute_commands(
     target: &DirectoryObject,
     current: Option<&DirectoryObject>,
     identity_dn: &str,
+    attribute_control_set: &AttributeControlSet,
 ) -> Vec<RemediationCommand> {
     let mut commands: Vec<RemediationCommand> = Vec::new();
     //         if (!string.Equals(target.Sddl, current?.Sddl, StringComparison.OrdinalIgnoreCase) &&
@@ -437,7 +529,7 @@ fn generate_restore_attribute_commands(
     let current_bin_attributes = current
         .map(|c| &c.bin_attributes)
         .unwrap_or(&empty_bin_attributes);
-    let mut to_replace: HashMap<String, String> = HashMap::new();
+    let mut to_replace_multi: HashMap<String, Vec<String>> = HashMap::new();
     let mut to_replace_bin: HashMap<String, Vec<String>> = HashMap::new();
     let mut to_clear: Vec<String> = Vec::new();
     // attribute replacement logic using target.attributes.keys() as the effective watch list
@@ -447,7 +539,12 @@ fn generate_restore_attribute_commands(
         if target_value != current_value
             && let Some(val) = target_value
         {
-            to_replace.insert(attr.clone(), val.join(","));
+            to_replace_multi.insert(
+                attr.clone(),
+                val.iter()
+                    .map(|v| escape_powershell_single_quoted(v))
+                    .collect(),
+            );
         }
     }
     for attr in current_attributes.keys() {
@@ -481,23 +578,37 @@ fn generate_restore_attribute_commands(
     }
     //         if (toReplace.Any())
     //         {
-    if to_replace.is_empty() && to_replace_bin.is_empty() && to_clear.is_empty() {
-        return commands;
-    }
+
     //             var replaceObject = new StringBuilder();
 
     // need to make a string object to hold the replacement values that will go into powershell's -Replace parameter, which is a hashtable in the form @{key=value;key2=value2}
 
     let mut replace_object = String::from("@{");
-    for (k, v) in to_replace {
-        replace_object.push_str(&format!("'{}'='{}';", k, v));
+    for (k, v) in to_replace_multi {
+        let quoted = v
+            .iter()
+            .map(|s| format!("'{}'", s))
+            .collect::<Vec<_>>()
+            .join(",");
+        replace_object.push_str(&format!("'{}'=@({});", k, quoted));
     }
     for (k, v) in to_replace_bin {
+        let is_single_valued = attribute_control_set
+            .allow_list
+            .get(&k)
+            .map(|a| a.is_single_valued)
+            .unwrap_or(false);
+
         let joined_vals: Vec<String> = v
             .iter()
             .map(|val| format!("[Convert]::FromBase64String('{}')", val))
             .collect();
-        replace_object.push_str(&format!("'{}'=@({});", k, joined_vals.join(",")));
+
+        if is_single_valued {
+            replace_object.push_str(&format!("'{}'={};", k, joined_vals[0]));
+        } else {
+            replace_object.push_str(&format!("'{}'=@({});", k, joined_vals.join(",")));
+        }
     }
     replace_object.push('}');
     //             replaceObject.Append("}");

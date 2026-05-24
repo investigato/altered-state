@@ -143,13 +143,13 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to write scenario config to path: {}", e))?;
 
     // activate it
-    let mut scenario_state = ScenarioState::load(&_config.paths.scenario_state_file);
+    let mut scenario_state = ScenarioState::load(&_config.paths.scenario_state_file).await;
     let scenario_ref = ScenarioRef {
         scenario: scenario_config.name.clone(),
         state_file: format!("{}.bin", target_export_type.to_string().to_lowercase()),
     };
     // update the state file
-    scenario_state.set_active_scenario(scenario_ref);
+    scenario_state.set_active_scenario(scenario_ref).await;
     scenario_state
         .save(&_config.paths.scenario_state_file)
         .map_err(|e| anyhow::anyhow!("Failed to update scenario state file: {}", e))?;

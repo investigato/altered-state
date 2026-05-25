@@ -1,6 +1,7 @@
 use crate::commands::{
-    activate::ActivateArgs, compare::CompareArgs, init::InitArgs, list::ListArgs,
-    new::NewScenarioArgs, reset::ResetArgs, serve::ServeArgs, snapshot::SnapshotArgs,
+    activate::ActivateArgs, compare::CompareArgs, delete::DeleteArgs, init::InitArgs,
+    list::ListArgs, new::NewScenarioArgs, reset::ResetArgs, serve::ServeArgs,
+    snapshot::SnapshotArgs,
 };
 
 use clap::{Parser, Subcommand};
@@ -21,10 +22,10 @@ pub enum Command {
     Serve(ServeArgs),
     Init(InitArgs),
     New(NewScenarioArgs),
+    Delete(DeleteArgs),
     Activate(ActivateArgs),
     Snapshot(SnapshotArgs),
     List(ListArgs),
     Compare(CompareArgs),
     Reset(ResetArgs),
-    // Delete(DeleteArgs),
 }

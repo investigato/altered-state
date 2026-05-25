@@ -8,6 +8,7 @@ pub mod new;
 pub mod reset;
 pub mod snapshot;
 pub mod serve;
+pub mod delete;
 
 use anyhow::Result;
 
@@ -28,6 +29,7 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
         Command::List(args) => list::run(args, config).await,
         Command::Compare(args) => compare::run(args, config).await,
         Command::Reset(args) => reset::run(args, config).await,
-        // Command::Delete(args) => delete::run(args, config).await,
+        Command::Delete(args) => delete::run(args, config).await,
+        
     }
 }

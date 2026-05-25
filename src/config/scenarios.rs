@@ -12,7 +12,10 @@ pub struct ScenarioConfig {
     pub image_path: Option<String>,
     pub hooks: Vec<ScenarioHookConfig>,
     pub exclusions: Vec<ExclusionConfig>,
+    #[serde(default)]
     pub snapshots: Vec<SnapshotEntry>,
+    #[serde(default)]
+    pub playable_state: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

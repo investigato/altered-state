@@ -26,12 +26,7 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
     config.paths.ensure_directories()?;
     config.logging.ensure_directories()?;
     let target_name = request.scenario;
-    let target_state = request.state.unwrap_or_else(|| "baseline".to_string());
-    // load the scenario file and make sure it exists and that we aren't trying to load the current scenario
-    tracing::info!(
-        "loading scenario state from file: {:?}",
-        config.paths.scenario_state_file
-    );
+
     let mut scenario_state = ScenarioState::load(&config.paths.scenario_state_file).await;
     let current_scenario = scenario_state.get_active_scenario().cloned();
     if let Some(current) = current_scenario.as_ref()
@@ -48,6 +43,18 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
     } else {
         None
     };
+    // if request.state is None, look for a "playable_state" in current_config, and if that doesn't exist, default to "baseline"
+    let target_state = request.state.unwrap_or_else(|| {
+        current_config
+            .as_ref()
+            .and_then(|c| c.playable_state.clone())
+            .unwrap_or_else(|| ScenarioExportType::Baseline.to_string() + ".bin")
+    });
+    // load the scenario file and make sure it exists and that we aren't trying to load the current scenario
+    tracing::info!(
+        "loading scenario state from file: {:?}",
+        config.paths.scenario_state_file
+    );
     let target_scenario_directory =
         std::path::Path::new(&config.paths.scenarios_directory).join(&target_name);
     // check for the corresponding .bin file in the directory
@@ -77,13 +84,12 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
     .await
     .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
-    let current_scenario_path = &config.paths.scenarios_directory.join(
-        current_scenario
-            .as_ref()
-            .map_or("current_scenario", |s| &s.scenario),
-    );
+    let current = current_scenario.as_ref().ok_or_else(|| {
+        anyhow::Error::msg("Expected an active scenario in state, but none was found")
+    })?;
+    let current_scenario_path = config.paths.scenarios_directory.join(&current.scenario);
     // create a directory for the current scenario if it doesn't exist
-    std::fs::create_dir_all(current_scenario_path)?;
+    std::fs::create_dir_all(&current_scenario_path)?;
     let current_export_file = format!(
         "{}.bin",
         ScenarioExportType::Current.to_string().to_lowercase()
@@ -142,7 +148,7 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
         let hook_outputs = execute_hooks(
             &cleanup_hooks,
             ScenarioHookType::Cleanup,
-            current_scenario_path,
+            &current_scenario_path,
         );
         if let Ok(outputs) = hook_outputs {
             for output in outputs {
@@ -163,7 +169,7 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
         let hook_outputs = execute_hooks(
             &preaction_hooks,
             ScenarioHookType::PreAction,
-            current_scenario_path,
+            &current_scenario_path,
         );
         if let Ok(outputs) = hook_outputs {
             for output in outputs {

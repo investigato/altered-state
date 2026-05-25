@@ -18,7 +18,7 @@ tracing-subscriber = { version = "0.3.23" ,features=["env-filter"]}
 oxicode = { version = "0.2.3", features = ["compression-zstd", "derive", "serde"] }
 colored = "3.1.1"
 indicatif = "0.18.4"
-log = "0.4.29"
+log = "0.4.30"
 bitflags = "2.11.1"
 regex = "1.12.3"
 sha1 = "0.11.0"
@@ -30,3 +30,9 @@ tower-http = { version = "0.6.11", features = ["fs"] }
 
 ["build-dependencies"]
 omnicopy_to_output = "0.3.0"
+
+[profile.release]
+codegen-units = 1 # Allows compiler to perform better optimization.
+lto = true # Enables Link-time Optimization.
+opt-level = "s" # Prioritizes small binary size. Use `3` if you prefer speed.
+strip = true # Ensures debug symbols are removed.

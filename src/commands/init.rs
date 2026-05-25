@@ -63,6 +63,7 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
             hooks: Vec::new(),
             exclusions: Vec::new(),
             snapshots: Vec::new(),
+            playable_state: Some(ScenarioExportType::Baseline.to_string() + ".bin"),
         },
         Some(template_configuration) => {
             let template_config = ScenarioConfig::load_from_path(template_configuration.as_str())
@@ -114,7 +115,7 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
             let scenario_scripts = template_config.hooks;
             let scenario_exclusions = template_config.exclusions;
             let scenario_snapshots = template_config.snapshots;
-
+            let playable_state = template_config.playable_state.as_deref().unwrap_or("baseline.bin").to_string();
             ScenarioConfig {
                 name: target_scenario_name,
                 description: Some(target_scenario_description),
@@ -122,6 +123,7 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
                 hooks: scenario_scripts,
                 exclusions: scenario_exclusions,
                 snapshots: scenario_snapshots,
+                playable_state: Some(playable_state),
             }
         }
     };

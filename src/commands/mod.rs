@@ -4,7 +4,7 @@ pub mod compare;
 pub mod init;
 pub mod list;
 pub mod new;
-// pub mod new;
+pub mod update;
 pub mod reset;
 pub mod snapshot;
 pub mod serve;
@@ -30,6 +30,7 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
         Command::Compare(args) => compare::run(args, config).await,
         Command::Reset(args) => reset::run(args, config).await,
         Command::Delete(args) => delete::run(args, config).await,
+        Command::Update(args) => update::run(args, config).await,
         
     }
 }

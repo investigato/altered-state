@@ -12,6 +12,7 @@ pub struct ScenarioConfig {
     pub image_path: Option<String>,
     pub hooks: Vec<ScenarioHookConfig>,
     pub exclusions: Vec<ExclusionConfig>,
+    pub snapshots: Vec<SnapshotEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,7 +39,24 @@ impl fmt::Display for ScenarioHookType {
         }
     }
 }
-
+pub fn load_all(path: &Path) -> Result<Vec<ScenarioConfig>, String> {
+    let mut scenarios = Vec::new();
+    let entries = std::fs::read_dir(path)
+        .map_err(|e| format!("Failed to read scenarios directory: {}", e))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let entry_path = entry.path();
+        // inside each scenario folder, the config is named config.json
+        if entry_path.is_dir() {
+            let config_path = entry_path.join("config.json");
+            if config_path.exists() {
+                let scenario = ScenarioConfig::load_from_path(config_path.to_str().unwrap())?;
+                scenarios.push(scenario);
+            }
+        }
+    }
+    Ok(scenarios)
+}
 impl ScenarioConfig {
     pub fn load_from_path(path: &str) -> Result<Self, String> {
         let config_str = std::fs::read_to_string(path)
@@ -48,24 +66,7 @@ impl ScenarioConfig {
         config.validate(path)?;
         Ok(config)
     }
-    pub fn load_all(path: &Path) -> Result<Vec<Self>, String> {
-        let mut scenarios = Vec::new();
-        let entries = std::fs::read_dir(path)
-            .map_err(|e| format!("Failed to read scenarios directory: {}", e))?;
-        for entry in entries {
-            let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
-            let entry_path = entry.path();
-            // inside each scenario folder, the config is named config.json
-            if entry_path.is_dir() {
-                let config_path = entry_path.join("config.json");
-                if config_path.exists() {
-                    let scenario = Self::load_from_path(config_path.to_str().unwrap())?;
-                    scenarios.push(scenario);
-                }
-            }
-        }
-        Ok(scenarios)
-    }
+
     pub fn load_for_scenario(scenarios_dir: &Path, scenario_name: &str) -> Result<Self, String> {
         let scenario_path = scenarios_dir.join(scenario_name).join("config.json");
         if !scenario_path.exists() {
@@ -196,6 +197,31 @@ impl ScenarioConfig {
         })?;
         Ok(())
     }
+    pub fn copy_snapshots_to_directory(
+        snapshots: Vec<SnapshotEntry>,
+        target_directory: &Path,
+    ) -> Result<(), String> {
+        for snapshot in &snapshots {
+            let snapshot_path = PathBuf::from(&snapshot.file_path);
+            if !snapshot_path.exists() {
+                return Err(format!(
+                    "Snapshot file not found at path: {:?}",
+                    snapshot_path
+                ));
+            }
+            let file_name = snapshot_path
+                .file_name()
+                .ok_or_else(|| format!("Invalid snapshot path: {:?}", snapshot_path))?;
+            let target_path = target_directory.join(file_name);
+            std::fs::copy(&snapshot_path, &target_path).map_err(|e| {
+                format!(
+                    "Failed to copy snapshot file from {:?} to {:?}: {}",
+                    snapshot_path, target_path, e
+                )
+            })?;
+        }
+        Ok(())
+    }
     pub fn save_to_path(&self, path: &str) -> Result<(), std::io::Error> {
         // need to update the paths inside the config to be relative to the scenario directory for portability, but first validate that they exist and get their absolute paths
         // if image, is the path set to the web_directory
@@ -217,7 +243,14 @@ impl ScenarioConfig {
             let target_path = hooks_dir.join(file_name);
             hook.path = target_path;
         }
-
+        for snapshot in &mut self.snapshots {
+            let snapshot_path = PathBuf::from(&snapshot.file_path);
+            let file_name = snapshot_path
+                .file_name()
+                .ok_or_else(|| format!("Invalid snapshot path: {:?}", snapshot_path))?;
+            let target_path = hooks_dir.join(file_name);
+            snapshot.file_path = target_path.to_string_lossy().to_string();
+        }
         if let Some(image_path) = &self.image_path {
             let image_path_buf = PathBuf::from(image_path);
             let file_name = image_path_buf
@@ -232,4 +265,13 @@ impl ScenarioConfig {
 
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+
+pub struct SnapshotEntry {
+    pub name: String,
+    pub description: String,
+    pub created_at: String,
+    pub file_path: String,
 }

@@ -62,6 +62,7 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
             image_path: None,
             hooks: Vec::new(),
             exclusions: Vec::new(),
+            snapshots: Vec::new(),
         },
         Some(template_configuration) => {
             let template_config = ScenarioConfig::load_from_path(template_configuration.as_str())
@@ -98,9 +99,21 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
                 )
                 .map_err(|e| anyhow::anyhow!(e))?;
             }
+            if !template_config.snapshots.is_empty() {
+                println!(
+                    "Template scenario has {} snapshots defined, they will be copied to the new scenario folder and included in the new scenario config",
+                    template_config.snapshots.len()
+                );
+                ScenarioConfig::copy_snapshots_to_directory(
+                    template_config.snapshots.clone(),
+                    &target_scenario_directory,
+                )
+                .map_err(|e| anyhow::anyhow!(e))?;
+            }
             let image_path = template_config.image_path.clone();
             let scenario_scripts = template_config.hooks;
             let scenario_exclusions = template_config.exclusions;
+            let scenario_snapshots = template_config.snapshots;
 
             ScenarioConfig {
                 name: target_scenario_name,
@@ -108,6 +121,7 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
                 image_path,
                 hooks: scenario_scripts,
                 exclusions: scenario_exclusions,
+                snapshots: scenario_snapshots,
             }
         }
     };

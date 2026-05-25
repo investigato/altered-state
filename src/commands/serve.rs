@@ -1,7 +1,7 @@
 use crate::{
     cleanup_crew::serve::{ServeRequest, ServerState, run as server_run},
     config::app::AppConfig,
-    config::scenarios::ScenarioConfig,
+    config::scenarios::load_all,
     models::scenario::ScenarioState,
 };
 
@@ -20,7 +20,7 @@ pub async fn run(args: ServeArgs, config: AppConfig) -> Result<()> {
     config.logging.ensure_directories()?;
 
     let all_scenarios =
-        ScenarioConfig::load_all(&config.paths.scenarios_directory).map_err(|e| {
+        load_all(&config.paths.scenarios_directory).map_err(|e| {
             anyhow::anyhow!(
                 "Failed to load scenarios from directory {}: {}",
                 config.paths.scenarios_directory.display(),

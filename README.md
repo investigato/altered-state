@@ -1,6 +1,6 @@
 # altered-state
 
-you broke the domain. altered-state doesn't care: snapshot, diff, fix, done. reset...restart...replay!
+you broke the domain. altered-state doesn't care: snapshot, diff, fix, done. reset...reconfigure...replay!
 
 <div align=center>
   <img height="450" alt="logo" src="https://github.com/investigato/altered-state/blob/main/assets/explain-ad.png" />

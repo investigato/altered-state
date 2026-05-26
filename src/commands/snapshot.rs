@@ -1,15 +1,10 @@
 use anyhow::Result;
 
 use crate::{
-    config::{
-        app::AppConfig,
-        scenarios::{ScenarioConfig, SnapshotEntry},
-    },
+    config::scenarios::{ScenarioConfig, SnapshotEntry},
+    context::AppContext,
     ldap::{ldap_search, prepare_results_from_source},
-    models::{
-        ldap::generate_ldap_options_from_config,
-        scenario::{ScenarioExportType, ScenarioState},
-    },
+    models::{ldap::generate_ldap_options_from_config, scenario::ScenarioExportType},
 };
 use clap::Args;
 
@@ -21,16 +16,15 @@ pub struct SnapshotArgs {
     pub description: String,
 }
 
-pub async fn run(args: SnapshotArgs, config: AppConfig) -> Result<()> {
+pub async fn run(args: SnapshotArgs, context: AppContext) -> Result<()> {
     if args.description.is_empty() {
         println!("Description is required");
         return Ok(());
     }
-    config.paths.ensure_directories()?;
-    config.logging.ensure_directories()?;
+
     let description = args.description;
-    let scenario_state = ScenarioState::load(&config.paths.scenario_state_file).await;
-    let current_scenario = scenario_state.get_active_scenario().cloned();
+
+    let current_scenario = context.scenario_state.get_active_scenario();
     // if args.scenario.is_empty() { get current scenario? }
     let scenario_name = match args.scenario.is_empty() {
         true => {
@@ -49,10 +43,10 @@ pub async fn run(args: SnapshotArgs, config: AppConfig) -> Result<()> {
     };
 
     let scenario_config =
-        ScenarioConfig::load_for_scenario(&config.paths.scenarios_directory, &scenario_name)
+        ScenarioConfig::load_for_scenario(&context.config.paths.scenarios_directory, &scenario_name)
             .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
-    let current_scenario_path = config.paths.scenarios_directory.join(&scenario_name);
+    let current_scenario_path = &context.config.paths.scenarios_directory.join(&scenario_name);
     let export_path = match current_scenario_path.exists() {
         true => {
             println!(
@@ -73,27 +67,27 @@ pub async fn run(args: SnapshotArgs, config: AppConfig) -> Result<()> {
     };
 
     // LDAP section
-    let ldap_options = generate_ldap_options_from_config(&config);
+    let ldap_options = generate_ldap_options_from_config(&context.config);
     let mut ldap_results = Vec::new();
     let total = ldap_search(
         ldap_options,
         &mut ldap_results,
-        &config.paths.naming_contexts_file,
+        &context.config.paths.naming_contexts_file,
     )
     .await
     .map_err(|e| anyhow::Error::msg(e.to_string()))?;
-    let current_schema_output_path = &config
+    let current_schema_output_path = &context.config
         .paths
         .scenarios_directory
         .join("schema_attributes.json");
     //
     prepare_results_from_source(
         ldap_results,
-        &config.domain,
+        &context.config.domain,
         &export_path,
         false,
         current_schema_output_path,
-        &config.never_touch_these_attributes,
+        &context.config.never_touch_these_attributes,
         Some(total),
     )
     .await

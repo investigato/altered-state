@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use crate::{config::{app::AppConfig, scenarios::load_all}, models::scenario};
+use crate::{config::scenarios::load_all, context::AppContext};
 
 #[derive(Debug, Args)]
 pub struct ListArgs {
@@ -9,15 +9,14 @@ pub struct ListArgs {
     pub detailed: bool,
 }
 
-pub async fn run(_args: ListArgs, _config: AppConfig) -> Result<()> {
-    _config.paths.ensure_directories()?;
-    _config.logging.ensure_directories()?;
-	let scenario_state = scenario::ScenarioState::load(&_config.paths.scenario_state_file).await;
-	if let Some(active) = scenario_state.active_scenario {
-		println!("Active scenario: {}", active.scenario);
-	} else {
-		println!("No active scenario");
-	}
+pub async fn run(_args: ListArgs, _context: AppContext) -> Result<()> {
+    let _config = &_context.config;
+    let _state = &_context.scenario_state;
+    if let Some(active) = &_state.active_scenario {
+        println!("Active scenario: {}", active.scenario);
+    } else {
+        println!("No active scenario");
+    }
     let all_scenarios = load_all(&_config.paths.scenarios_directory).map_err(|e| {
         anyhow::anyhow!(
             "Failed to load scenarios from directory {}: {}",

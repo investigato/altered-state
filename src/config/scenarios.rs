@@ -1,10 +1,11 @@
 use crate::config::exclusions::ExclusionConfig;
+
 use serde::{Deserialize, Serialize};
+
 use std::{
     fmt,
     path::{Path, PathBuf},
 };
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioConfig {
     pub name: String,
@@ -24,7 +25,6 @@ pub struct ScenarioHookConfig {
     pub path: PathBuf,
     pub arguments: Vec<String>,
     pub continue_on_error: bool,
-
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

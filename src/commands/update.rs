@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use crate::config::{app::AppConfig, scenarios::ScenarioConfig};
+use crate::{config::scenarios::ScenarioConfig, context::AppContext};
 
 #[derive(Debug, Args)]
 pub struct UpdateArgs {
@@ -20,7 +20,7 @@ pub struct UpdateArgs {
     pub set_playable: Option<String>,
 }
 
-pub async fn run(_args: UpdateArgs, _config: AppConfig) -> Result<()> {
+pub async fn run(_args: UpdateArgs, _context: AppContext) -> Result<()> {
     if _args.name.is_empty() {
         println!("Scenario name is required for deletion");
         return Ok(());
@@ -29,21 +29,20 @@ pub async fn run(_args: UpdateArgs, _config: AppConfig) -> Result<()> {
         println!("At least one of --description or --set-playable must be provided");
         return Ok(());
     }
-    _config.paths.ensure_directories()?;
-    _config.logging.ensure_directories()?;
+
     // see if scenario exists
-    let scenario_path = _config.paths.scenarios_directory.join(&_args.name);
+    let scenario_path = &_context.config.paths.scenarios_directory.join(&_args.name);
     if !scenario_path.exists() {
         println!("Scenario {} does not exist", _args.name);
         return Ok(());
     }
-    let config_path = scenario_path.join("config.yaml");
+    let config_path = scenario_path.join("config.json");
     if !config_path.exists() {
-        println!("Scenario {} does not have a config.yaml file", _args.name);
+        println!("Scenario {} does not have a config.json file", _args.name);
         return Ok(());
     }
     let mut scenario_config =
-        ScenarioConfig::load_for_scenario(&_config.paths.scenarios_directory, &_args.name)
+        ScenarioConfig::load_for_scenario(&_context.config.paths.scenarios_directory, &_args.name)
             .map_err(|e| anyhow::Error::msg(e.to_string()))?;
     if let Some(description) = _args.description {
         scenario_config.description = Some(description);

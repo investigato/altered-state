@@ -10,7 +10,7 @@ pub(crate) mod remediation;
 pub(crate) mod storage;
 pub(crate) mod utilities;
 pub(crate) mod web;
-
+pub(crate) mod context;
 extern crate bitflags;
 extern crate chrono;
 extern crate regex;

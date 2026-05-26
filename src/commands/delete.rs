@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Args;
 
-use crate::config::app::AppConfig;
+use crate::{cleanup_crew::activate::ActivateRequest, context::AppContext};
 
 #[derive(Debug, Args)]
 pub struct DeleteArgs {
@@ -15,19 +15,40 @@ pub struct DeleteArgs {
     pub force: bool,
 }
 
-pub async fn run(_args: DeleteArgs, _config: AppConfig) -> Result<()> {
+pub async fn run(_args: DeleteArgs, _context: AppContext) -> Result<()> {
     if _args.name.is_empty() {
         println!("Scenario name is required for deletion");
         return Ok(());
     }
-    _config.paths.ensure_directories()?;
-    _config.logging.ensure_directories()?;
+    let _config = &_context.config;
+    let _state = &_context.scenario_state;
+
     // see if scenario exists
     let scenario_path = _config.paths.scenarios_directory.join(&_args.name);
     if !scenario_path.exists() {
         println!("Scenario {} does not exist", _args.name);
         return Ok(());
     }
+    // check scenario_state to see if the scenario is active, if active, activate default scenario first before deletion
+    let active_scenario = _state.get_active_scenario();
+    if let Some(active) = active_scenario
+        && active.scenario == _args.name
+    {
+        println!(
+            "Scenario {} is currently active. Activating default scenario before deletion.",
+            _args.name
+        );
+
+        crate::cleanup_crew::activate::run(
+            _context.clone(),
+            ActivateRequest {
+                scenario: "default".to_string(),
+                state: None,
+            },
+        )
+        .await?;
+    }
+
     if !_args.force {
         println!(
             "Are you sure you want to delete scenario {}? This action cannot be undone. (y/N)",
@@ -42,6 +63,5 @@ pub async fn run(_args: DeleteArgs, _config: AppConfig) -> Result<()> {
     }
     std::fs::remove_dir_all(&scenario_path)?;
     println!("Scenario {} has been deleted", _args.name);
-
     Ok(())
 }

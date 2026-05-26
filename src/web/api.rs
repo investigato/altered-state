@@ -8,24 +8,24 @@ use std::sync::{Arc, RwLock};
 use tokio::sync::Mutex;
 
 use crate::{
-    cleanup_crew::serve::ServerState,
     cleanup_crew::{
         activate::{self, ActivateRequest},
         reset::{self, ResetRequest},
+        serve::ServerState,
     },
-    config::app::AppConfig,
+    context::AppContext,
 };
 
 #[derive(Clone)]
 pub struct ApiState {
-    pub config: AppConfig,
+    pub context: AppContext,
     pub server_state: Arc<RwLock<ServerState>>,
     pub operation_lock: Arc<Mutex<()>>,
 }
 
-pub fn router(config: AppConfig, scenario_state: Arc<RwLock<ServerState>>) -> Router {
+pub fn router(context: AppContext, scenario_state: Arc<RwLock<ServerState>>) -> Router {
     let state = ApiState {
-        config,
+        context,
         server_state: scenario_state,
         operation_lock: Arc::new(Mutex::new(())),
     };
@@ -48,29 +48,22 @@ async fn health() -> Json<serde_json::Value> {
 
 async fn get_active_scenario(State(state): State<ApiState>) -> Json<serde_json::Value> {
     let _guard = state.operation_lock.lock().await;
-    let active_scenario = state
+    let server_state = state
         .server_state
         .read()
-        .expect("server_state RwLock not good right now")
-        .active_scenario
-        .clone();
-    if let Some(ref scenario_name) = active_scenario {
-        tracing::info!("Current active scenario: {}", scenario_name);
-        Json(json!({ "ok": true, "active_scenario": active_scenario }))
-    } else {
-        tracing::info!("No active scenario");
-        Json(json!({ "ok": true, "active_scenario": null }))
-    }
+        .expect("server_state RwLock not good right now");
+    let active_scenario = server_state.context.scenario_state.get_active_scenario();
+    Json(json!({ "ok": true, "active_scenario": active_scenario }))
 }
 
 async fn get_scenarios(State(state): State<ApiState>) -> Json<serde_json::Value> {
     let _guard = state.operation_lock.lock().await;
-    let scenarios = state
+    let server_state = state
         .server_state
         .read()
-        .expect("server_state RwLock not good right now")
+        .expect("server_state RwLock not good right now");
+    let scenarios = server_state
         .scenarios
-        .clone()
         .iter()
         .map(|s| {
             json!({
@@ -89,15 +82,14 @@ async fn activate_scenario(
     Json(payload): Json<ActivateRequest>,
 ) -> Json<serde_json::Value> {
     let _guard = state.operation_lock.lock().await;
-    let scenario_name = payload.scenario.clone();
-    match activate::run(state.config.clone(), payload).await {
+    match activate::run(state.context, payload).await {
         Ok(_) => {
-            state
+            let server_state = state
                 .server_state
-                .write()
-                .expect("RwLock poisoned")
-                .active_scenario = Some(scenario_name.clone());
-            Json(json!({ "ok": true, "active_scenario": scenario_name }))
+                .read()
+                .expect("server_state RwLock not good right now");
+            let active_scenario = server_state.context.scenario_state.get_active_scenario();
+            Json(json!({ "ok": true, "active_scenario": active_scenario }))
         }
         Err(err) => Json(json!({ "ok": false, "error": err.to_string() })),
     }
@@ -108,7 +100,7 @@ async fn reset_scenario(
     Json(payload): Json<ResetRequest>,
 ) -> Json<serde_json::Value> {
     let _guard = state.operation_lock.lock().await;
-    match reset::run(state.config.clone(), payload).await {
+    match reset::run(state.context, payload).await {
         Ok(_) => Json(json!({ "ok": true, "message": "scenario reset" })),
         Err(err) => Json(json!({ "ok": false, "error": err.to_string() })),
     }

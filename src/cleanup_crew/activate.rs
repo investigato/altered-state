@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     comparison::comparer::compare_states,
-    config::app::AppConfig,
     config::scenarios::ScenarioConfig,
     config::scenarios::{ScenarioHookConfig, ScenarioHookType},
+    context::AppContext,
     ldap::{ldap_search, prepare_results_from_source},
     models::ldap::generate_ldap_options_from_config,
     models::scenario::{ScenarioExportType, ScenarioRef, ScenarioState},
@@ -21,45 +21,82 @@ pub struct ActivateRequest {
     pub state: Option<String>,
 }
 
-pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
+pub async fn run(mut context: AppContext, request: ActivateRequest) -> Result<()> {
     tracing::info!("activating scenario {}", request.scenario);
-    config.paths.ensure_directories()?;
-    config.logging.ensure_directories()?;
-    let target_name = request.scenario;
+    let config = &context.config;
 
-    let mut scenario_state = ScenarioState::load(&config.paths.scenario_state_file).await;
-    let current_scenario = scenario_state.get_active_scenario().cloned();
-    if let Some(current) = current_scenario.as_ref()
-        && current.scenario == target_name
-    {
-        println!("Scenario {} is already active", target_name);
-        return Ok(());
-    }
-    let current_config = if let Some(current) = current_scenario.as_ref() {
-        Some(
-            ScenarioConfig::load_for_scenario(&config.paths.scenarios_directory, &current.scenario)
-                .map_err(|e| anyhow::Error::msg(e.to_string()))?,
-        )
-    } else {
-        None
-    };
-    // if request.state is None, look for a "playable_state" in current_config, and if that doesn't exist, default to "baseline"
-    let target_state = request.state.unwrap_or_else(|| {
-        current_config
-            .as_ref()
-            .and_then(|c| c.playable_state.clone())
-            .unwrap_or_else(|| ScenarioExportType::Baseline.to_string() + ".bin")
-    });
-    // load the scenario file and make sure it exists and that we aren't trying to load the current scenario
-    tracing::info!(
-        "loading scenario state from file: {:?}",
-        config.paths.scenario_state_file
-    );
+    let target_name = request.scenario;
     let target_scenario_directory =
         std::path::Path::new(&config.paths.scenarios_directory).join(&target_name);
-    // check for the corresponding .bin file in the directory
-    let target_scenario_file =
-        target_scenario_directory.join(format!("{}.bin", target_state.to_lowercase()));
+    // if scenario doesn't exist, error out
+    if !target_scenario_directory.exists() {
+        println!(
+            "Scenario directory {} does not exist",
+            target_scenario_directory.to_string_lossy()
+        );
+        return Ok(());
+    }
+    // load the config file, if error, then error out
+    if !target_scenario_directory.join("config.json").exists() {
+        println!(
+            "Scenario config file {} does not exist",
+            target_scenario_directory
+                .join("config.json")
+                .to_string_lossy()
+        );
+        return Ok(());
+    }
+    let target_scenario_config =
+        ScenarioConfig::load_for_scenario(&config.paths.scenarios_directory, &target_name)
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    // Resolve target file:
+    // - request.state is Some → format!("{}.bin", state) → if file doesn't exist, exit
+    // - request.state is None → playable_state from config, fallback to "baseline" → same existence check
+    let target_state = if let Some(state) = request.state {
+        // if it doesn't end with bin, add .bin
+        if !state.to_lowercase().ends_with(".bin") {
+            let formatted_state = format!("{}.bin", state);
+            if !target_scenario_directory.join(&formatted_state).exists() {
+                println!(
+                    "Scenario file {} does not exist",
+                    target_scenario_directory
+                        .join(&formatted_state)
+                        .to_string_lossy()
+                );
+                return Ok(());
+            }
+            formatted_state
+        } else {
+            if !target_scenario_directory.join(&state).exists() {
+                println!(
+                    "Scenario file {} does not exist",
+                    target_scenario_directory.join(&state).to_string_lossy()
+                );
+                return Ok(());
+            }
+            state
+        }
+    } else if let Some(playable) = target_scenario_config.playable_state {
+        // ensure the format is correct with ScenarioExportType::Type.bin
+        if !playable.to_lowercase().ends_with(".bin") {
+            let formatted_playable = format!("{}.bin", playable);
+            if !target_scenario_directory.join(&formatted_playable).exists() {
+                println!(
+                    "Scenario file {} does not exist",
+                    target_scenario_directory
+                        .join(&formatted_playable)
+                        .to_string_lossy()
+                );
+                return Ok(());
+            }
+            formatted_playable
+        } else {
+            playable
+        }
+    } else {
+        ScenarioExportType::Baseline.to_string() + ".bin"
+    };
+    let target_scenario_file = target_scenario_directory.join(target_state.to_lowercase());
     if !target_scenario_file.exists() {
         println!(
             "Scenario file {} does not exist",
@@ -68,10 +105,22 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
         return Ok(());
     }
 
-    // read the target_scenario_file to make sure it's a valid scenario file
-    let target_scenario_exported_objects =
-        read_directory_objects_from_bin_file(&target_scenario_file)
-            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    // check if this scenario is already active, exit if so
+
+    // load current scenario's config (needed for cleanup/pre-action hooks)
+
+    // whoops, this should never ever be none at this point :-(
+    let current_config = ScenarioConfig::load_for_scenario(
+        &config.paths.scenarios_directory,
+        &context
+            .scenario_state
+            .get_active_scenario()
+            .ok_or_else(|| {
+                anyhow::Error::msg("Expected an active scenario in state, but none was found")
+            })?
+            .scenario,
+    )
+    .ok();
 
     // get the "where are we now?"
     let ldap_options = generate_ldap_options_from_config(&config);
@@ -84,17 +133,20 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
     .await
     .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
-    let current = current_scenario.as_ref().ok_or_else(|| {
-        anyhow::Error::msg("Expected an active scenario in state, but none was found")
-    })?;
+    let current = context
+        .scenario_state
+        .get_active_scenario()
+        .ok_or_else(|| {
+            anyhow::Error::msg("Expected an active scenario in state, but none was found")
+        })?;
     let current_scenario_path = config.paths.scenarios_directory.join(&current.scenario);
     // create a directory for the current scenario if it doesn't exist
     std::fs::create_dir_all(&current_scenario_path)?;
-    let current_export_file = format!(
+    let temp_export_file = format!(
         "{}.bin",
         ScenarioExportType::Current.to_string().to_lowercase()
     );
-    let current_export_path = current_scenario_path.join(current_export_file);
+    let temp_export_path = config.paths.temp_directory.join(&temp_export_file);
     let current_schema_output_path = &config
         .paths
         .scenarios_directory
@@ -103,7 +155,7 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
     let results = prepare_results_from_source(
         ldap_results,
         &config.domain,
-        &current_export_path,
+        &temp_export_path,
         false,
         current_schema_output_path,
         &config.never_touch_these_attributes,
@@ -113,6 +165,10 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
     .map_err(|e| anyhow::Error::msg(e.to_string()))?;
 
     let directory_objects = results.directory_objects.clone();
+    let target_scenario_exported_objects =
+        read_directory_objects_from_bin_file(&target_scenario_file)
+            .map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    //  compare_states → generate_commands
 
     let actions = compare_states(directory_objects, target_scenario_exported_objects)
         .await
@@ -122,21 +178,17 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
         &config.paths.naming_contexts_file,
         &config.paths.schema_attributes_file,
     );
-    // write_to_console(&commands);
 
-    // get scenario state
-    let scenario_config_path = target_scenario_directory.join("config.json");
-    if !scenario_config_path.exists() {
-        println!(
-            "Scenario config file {} does not exist",
-            scenario_config_path.to_string_lossy()
-        );
-        return Ok(());
-    }
+    //  run cleanup hooks on current scenario
+    // let scenario_config_path = target_scenario_directory.join("config.json");
+    // if !scenario_config_path.exists() {
+    //     println!(
+    //         "Scenario config file {} does not exist",
+    //         scenario_config_path.to_string_lossy()
+    //     );
+    //     return Ok(());
+    // }
 
-    // hook shot
-    // first cleanup from active_scenario if it exists BEFORE we change
-    // does current_scenario have hooks?
     if let Some(current_config) = current_config.as_ref() {
         let cleanup_hooks: Vec<ScenarioHookConfig> = current_config
             .hooks
@@ -159,6 +211,8 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
             }
         }
     }
+
+    //  run pre-action hooks on current scenario
     if let Some(current_config) = current_config.as_ref() {
         let preaction_hooks: Vec<ScenarioHookConfig> = current_config
             .hooks
@@ -181,33 +235,29 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
         }
     }
 
+    //  write_ps1 + execute_script
     write_ps1(&commands, &config.paths.actions_script_file);
     execute_script(&config.paths.actions_script_file.to_string_lossy());
 
-    // if we have an active scenario, move it to previous scenario
-    if let Some(current) = current_scenario.as_ref() {
-        scenario_state.previous_scenario = Some(current.clone());
-    }
-    // set the new active scenario
-    scenario_state.active_scenario = Some(ScenarioRef {
+    //  update and save ScenarioState
+    let active_scenario_ref = ScenarioRef {
         scenario: target_name.clone(),
-        state_file: target_scenario_file.to_string_lossy().to_string(),
-    });
+        state_file: target_scenario_directory
+            .join(target_state.to_lowercase())
+            .to_string_lossy()
+            .to_string(),
+    };
+    // update the state file
+    context
+        .scenario_state
+        .set_active_scenario(active_scenario_ref)
+        .await;
     // save the scenario state
-    scenario_state.save(&config.paths.scenario_state_file)?;
-    if let Some(current) = current_scenario.as_ref() {
-        println!(
-            "Scenario {} with state {} is now active. Previous scenario was {} with state {}",
-            target_name, target_state, current.scenario, current.state_file
-        );
-    } else {
-        println!(
-            "Scenario {} with state {} is now active. No previous scenario.",
-            target_name, target_state
-        );
-    }
+    context
+        .save_scenario_state()
+        .map_err(|e| anyhow::anyhow!("Failed to update scenario state file: {}", e))?;
 
-    // does new active_scenario have hooks?
+    //  run activation hooks on new scenario
     let new_config =
         ScenarioConfig::load_for_scenario(&config.paths.scenarios_directory, &target_name)
             .map_err(|e| anyhow::Error::msg(e.to_string()))?;
@@ -230,6 +280,17 @@ pub async fn run(config: AppConfig, request: ActivateRequest) -> Result<()> {
             );
         }
     }
-
+    //  print result
+    if let Some(current) = context.scenario_state.get_active_scenario() {
+        println!(
+            "Scenario {} with state {} is now active. Previous scenario was {} with state {}",
+            target_name, target_state, current.scenario, current.state_file
+        );
+    } else {
+        println!(
+            "Scenario {} with state {} is now active. No previous scenario.",
+            target_name, target_state
+        );
+    }
     Ok(())
 }

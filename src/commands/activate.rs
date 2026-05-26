@@ -3,18 +3,19 @@ use clap::Args;
 
 use crate::{
     cleanup_crew::activate::{ActivateRequest, run as activate_scenario},
-    config::app::AppConfig,
+    
+    context::AppContext,
 };
 #[derive(Debug, Args)]
 pub struct ActivateArgs {
     #[arg(long)]
     pub scenario: String,
 
-    #[arg(long = "state", default_value = "baseline")]
+    #[arg(long = "state")]
     pub state: Option<String>,
 }
 
-pub async fn run(args: ActivateArgs, config: AppConfig) -> Result<()> {
+pub async fn run(args: ActivateArgs, context: AppContext) -> Result<()> {
     if args.scenario.is_empty() {
         println!("Scenario name is required");
         return Ok(());
@@ -23,5 +24,5 @@ pub async fn run(args: ActivateArgs, config: AppConfig) -> Result<()> {
         scenario: args.scenario,
         state: args.state,
     };
-    activate_scenario(config, request).await
+    activate_scenario(context, request).await
 }

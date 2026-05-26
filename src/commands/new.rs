@@ -2,7 +2,8 @@ use anyhow::Result;
 use clap::Args;
 
 use crate::{
-    config::{app::AppConfig, scenarios::ScenarioConfig},
+    config::scenarios::ScenarioConfig,
+    context::AppContext,
     ldap::{ldap_search, prepare_results_from_source},
     models::ldap::generate_ldap_options_from_config,
     models::scenario::{ScenarioExportType, ScenarioRef, ScenarioState},
@@ -23,9 +24,9 @@ pub struct NewScenarioArgs {
     pub name: String,
 }
 
-pub async fn run(_args: NewScenarioArgs, _config: AppConfig) -> Result<()> {
-    _config.paths.ensure_directories()?;
-    _config.logging.ensure_directories()?;
+pub async fn run(_args: NewScenarioArgs, _context: AppContext) -> Result<()> {
+    let _config = &_context.config;
+    let mut _state = _context.scenario_state;
     let overwrite = _args.overwrite;
 
     let description = match _args.description {
@@ -169,7 +170,7 @@ pub async fn run(_args: NewScenarioArgs, _config: AppConfig) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to write scenario config to path: {}", e))?;
 
     // activate it
-    let mut scenario_state = ScenarioState::load(&_config.paths.scenario_state_file).await;
+
     let scenario_ref = ScenarioRef {
         scenario: scenario_config.name.clone(),
         state_file: target_scenario_directory
@@ -181,8 +182,8 @@ pub async fn run(_args: NewScenarioArgs, _config: AppConfig) -> Result<()> {
             .to_string(),
     };
     // update the state file
-    scenario_state.set_active_scenario(scenario_ref).await;
-    scenario_state
+    _state.set_active_scenario(scenario_ref).await;
+    _state
         .save(&_config.paths.scenario_state_file)
         .map_err(|e| anyhow::anyhow!("Failed to update scenario state file: {}", e))?;
 

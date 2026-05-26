@@ -50,7 +50,12 @@ impl ScenarioState {
     }
 
     pub fn get_active_scenario(&self) -> Option<&ScenarioRef> {
-        self.active_scenario.as_ref()
+        if let Some(ref active) = self.active_scenario {
+            Some(active)
+        } else {
+            // try to load from file if active_scenario is None, this handles the case where the state is not in memory but exists on disk
+            None
+        }
     }
     pub fn get_active_scenario_name(&self) -> Option<String> {
         // load() first, then get the active scenario name if it exists

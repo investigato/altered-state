@@ -1,7 +1,4 @@
-use crate::{
-    models::scenario::ScenarioState,
-    config::defaults::{LoggingConfig, PathsConfig},
-};
+use crate::config::defaults::{LoggingConfig, PathsConfig};
 use anyhow::Result;
 use config::{Config, ConfigError, File, FileFormat};
 use serde::{Deserialize, Serialize};
@@ -15,8 +12,6 @@ pub struct AppConfig {
     pub paths: PathsConfig,
     #[serde(default)]
     pub logging: LoggingConfig,
-    #[serde(default)]
-    pub scenario_state: ScenarioState,
 }
 
 impl AppConfig {

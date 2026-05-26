@@ -66,7 +66,6 @@ async function runAction(label, path, scenarioName) {
     currentButtons.forEach((btn) => { btn.disabled = true; });
     const requestBody = {
         scenario: scenarioName,
-        state: "baseline"
     };
     try {
         await api(path, { method: "POST", body: JSON.stringify(requestBody) });

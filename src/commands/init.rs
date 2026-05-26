@@ -1,8 +1,9 @@
 use crate::{
-    config::{app::AppConfig, scenarios::ScenarioConfig},
+    config::scenarios::ScenarioConfig,
+    context::AppContext,
     ldap::{ldap_search, prepare_results_from_source},
     models::ldap::generate_ldap_options_from_config,
-    models::scenario::{ScenarioExportType, ScenarioRef, ScenarioState},
+    models::scenario::{ScenarioExportType, ScenarioRef},
 };
 use anyhow::Result;
 use clap::Args;
@@ -16,9 +17,8 @@ pub struct InitArgs {
     pub template_configuration: Option<String>,
 }
 
-pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
-    _config.paths.ensure_directories()?;
-    _config.logging.ensure_directories()?;
+pub async fn run(_args: InitArgs, mut _context: AppContext) -> Result<()> {
+    let _config = &_context.config;
     let overwrite = _args.overwrite;
     // check command specific options
     // var templateConfigPath = parseResult.GetValue(_templateConfigOption);
@@ -115,7 +115,11 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
             let scenario_scripts = template_config.hooks;
             let scenario_exclusions = template_config.exclusions;
             let scenario_snapshots = template_config.snapshots;
-            let playable_state = template_config.playable_state.as_deref().unwrap_or("baseline.bin").to_string();
+            let playable_state = template_config
+                .playable_state
+                .as_deref()
+                .unwrap_or("baseline.bin")
+                .to_string();
             ScenarioConfig {
                 name: target_scenario_name,
                 description: Some(target_scenario_description),
@@ -177,7 +181,7 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to write scenario config to path: {}", e))?;
 
     // activate it
-    let mut scenario_state = ScenarioState::load(&_config.paths.scenario_state_file).await;
+
     let active_scenario_ref = ScenarioRef {
         scenario: scenario_config.name.clone(),
         state_file: target_scenario_directory
@@ -190,11 +194,12 @@ pub async fn run(_args: InitArgs, _config: AppConfig) -> Result<()> {
     };
 
     // update the state file
-    scenario_state
+    _context
+        .scenario_state
         .set_active_scenario(active_scenario_ref)
         .await;
-    scenario_state
-        .save(&_config.paths.scenario_state_file)
+    _context
+        .save_scenario_state()
         .map_err(|e| anyhow::anyhow!("Failed to update scenario state file: {}", e))?;
 
     Ok(())

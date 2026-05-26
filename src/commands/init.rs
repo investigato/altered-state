@@ -148,7 +148,7 @@ pub async fn run(_args: InitArgs, mut _context: AppContext) -> Result<()> {
     // AdExporter.ExportSchema(retconConfig);
     // generate ldap options from config file
 
-    let ldap_options = generate_ldap_options_from_config(&_config);
+    let ldap_options = generate_ldap_options_from_config(_config);
 
     let mut ldap_results = Vec::new();
     let total = ldap_search(

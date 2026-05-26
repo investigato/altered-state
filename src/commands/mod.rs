@@ -16,7 +16,7 @@ use crate::{
 };
 
 pub async fn dispatch(cli: Cli) -> Result<()> {
-    let config = AppConfig::load(cli.config.as_deref())?;
+    let _config = AppConfig::load(cli.config.as_deref())?;
     let context = AppContext::new(cli.config.as_deref()).await?;
 
 

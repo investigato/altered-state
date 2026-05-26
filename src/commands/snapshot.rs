@@ -58,7 +58,7 @@ pub async fn run(args: SnapshotArgs, context: AppContext) -> Result<()> {
             current_scenario_path.join(format!("{}.bin", snapshot_name.to_lowercase()))
         }
         false => {
-            std::fs::create_dir_all(&current_scenario_path)?;
+            std::fs::create_dir_all(current_scenario_path)?;
             current_scenario_path.join(format!(
                 "{}.bin",
                 ScenarioExportType::Baseline.to_string().to_lowercase()

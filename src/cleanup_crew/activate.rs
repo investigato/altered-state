@@ -8,7 +8,7 @@ use crate::{
     context::AppContext,
     ldap::{ldap_search, prepare_results_from_source},
     models::ldap::generate_ldap_options_from_config,
-    models::scenario::{ScenarioExportType, ScenarioRef, ScenarioState},
+    models::scenario::{ScenarioExportType, ScenarioRef},
     objects::directory_objects::read_directory_objects_from_bin_file,
     remediation::command_generator::generate_commands,
     utilities::hooks::execute_hooks,
@@ -123,7 +123,7 @@ pub async fn run(mut context: AppContext, request: ActivateRequest) -> Result<()
     .ok();
 
     // get the "where are we now?"
-    let ldap_options = generate_ldap_options_from_config(&config);
+    let ldap_options = generate_ldap_options_from_config(config);
     let mut ldap_results = Vec::new();
     let total = ldap_search(
         ldap_options,
@@ -281,16 +281,11 @@ pub async fn run(mut context: AppContext, request: ActivateRequest) -> Result<()
         }
     }
     //  print result
-    if let Some(current) = context.scenario_state.get_active_scenario() {
-        println!(
-            "Scenario {} with state {} is now active. Previous scenario was {} with state {}",
-            target_name, target_state, current.scenario, current.state_file
-        );
-    } else {
-        println!(
-            "Scenario {} with state {} is now active. No previous scenario.",
-            target_name, target_state
-        );
-    }
+
+    println!(
+        "Scenario {} with state {} is now active.",
+        target_name, target_state,
+    );
+
     Ok(())
 }

@@ -13,20 +13,18 @@ use crate::{
         reset::{self, ResetRequest},
         serve::ServerState,
     },
-    context::AppContext,
+    models::scenario::ScenarioState,
 };
 
 #[derive(Clone)]
 pub struct ApiState {
-    pub context: AppContext,
     pub server_state: Arc<RwLock<ServerState>>,
     pub operation_lock: Arc<Mutex<()>>,
 }
 
-pub fn router(context: AppContext, scenario_state: Arc<RwLock<ServerState>>) -> Router {
+pub fn router(server_state: Arc<RwLock<ServerState>>) -> Router {
     let state = ApiState {
-        context,
-        server_state: scenario_state,
+        server_state,
         operation_lock: Arc::new(Mutex::new(())),
     };
 
@@ -53,7 +51,13 @@ async fn get_active_scenario(State(state): State<ApiState>) -> Json<serde_json::
         .read()
         .expect("server_state RwLock not good right now");
     let active_scenario = server_state.context.scenario_state.get_active_scenario();
-    Json(json!({ "ok": true, "active_scenario": active_scenario }))
+    if let Some(scenario) = &active_scenario {
+        tracing::info!("Active scenario: {}", scenario.scenario);
+        Json(json!({ "ok": true, "active_scenario": scenario.scenario }))
+    } else {
+        tracing::info!("No active scenario");
+        Json(json!({ "ok": true, "active_scenario": null }))
+    }
 }
 
 async fn get_scenarios(State(state): State<ApiState>) -> Json<serde_json::Value> {
@@ -82,14 +86,43 @@ async fn activate_scenario(
     Json(payload): Json<ActivateRequest>,
 ) -> Json<serde_json::Value> {
     let _guard = state.operation_lock.lock().await;
-    match activate::run(state.context, payload).await {
+    let context = state
+        .server_state
+        .read()
+        .expect("server_state RwLock not good right now")
+        .context
+        .clone();
+    match activate::run(context, payload).await {
         Ok(_) => {
+            let scenario_state_file = {
+                let server_state = state.server_state.read().expect("RwLock poisoned");
+                server_state
+                    .context
+                    .config
+                    .paths
+                    .scenario_state_file
+                    .clone()
+            };
+
+            let new_scenario_state = ScenarioState::load(&scenario_state_file).await;
+
+            {
+                let mut server_state = state.server_state.write().expect("RwLock poisoned");
+                server_state.context.scenario_state = new_scenario_state;
+            }
+
             let server_state = state
                 .server_state
                 .read()
                 .expect("server_state RwLock not good right now");
             let active_scenario = server_state.context.scenario_state.get_active_scenario();
-            Json(json!({ "ok": true, "active_scenario": active_scenario }))
+            if let Some(scenario) = &active_scenario {
+                tracing::info!("Active scenario: {}", scenario.scenario);
+                Json(json!({ "ok": true, "active_scenario": scenario.scenario }))
+            } else {
+                tracing::info!("No active scenario");
+                Json(json!({ "ok": true, "active_scenario": null }))
+            }
         }
         Err(err) => Json(json!({ "ok": false, "error": err.to_string() })),
     }
@@ -100,7 +133,13 @@ async fn reset_scenario(
     Json(payload): Json<ResetRequest>,
 ) -> Json<serde_json::Value> {
     let _guard = state.operation_lock.lock().await;
-    match reset::run(state.context, payload).await {
+    let context = state
+        .server_state
+        .read()
+        .expect("server_state RwLock not good right now")
+        .context
+        .clone();
+    match reset::run(context, payload).await {
         Ok(_) => Json(json!({ "ok": true, "message": "scenario reset" })),
         Err(err) => Json(json!({ "ok": false, "error": err.to_string() })),
     }

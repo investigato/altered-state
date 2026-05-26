@@ -6,7 +6,7 @@ use crate::{
     context::AppContext,
     ldap::{ldap_search, prepare_results_from_source},
     models::ldap::generate_ldap_options_from_config,
-    models::scenario::{ScenarioExportType, ScenarioRef, ScenarioState},
+    models::scenario::{ScenarioExportType, ScenarioRef},
 };
 
 // private readonly Option<bool> _activateOption;
@@ -142,7 +142,7 @@ pub async fn run(_args: NewScenarioArgs, _context: AppContext) -> Result<()> {
             &target_scenario_directory.join("config.json"),
         )
         .map_err(|e| anyhow::anyhow!("Failed to finalize scenario config paths: {}", e))?;
-    let ldap_options = generate_ldap_options_from_config(&_config);
+    let ldap_options = generate_ldap_options_from_config(_config);
 
     let mut ldap_results = Vec::new();
     let total = ldap_search(

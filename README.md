@@ -115,14 +115,6 @@ Certificate Authorities
       ESC6                              : Other prerequisites may be required for this to be exploitable. See the wiki for more details.
 ```
 
-## build
-
-```powershell
-cargo build --release
-```
-
-build script copies `wwwroot/` and `config.json` next to the binary automatically.
-
 ## configuration
 
 copy `config.example.json` to `config.json` in the same directory as the binary:
@@ -145,6 +137,14 @@ copy `config.example.json` to `config.json` in the same directory as the binary:
 | `hostname` | domain controller FQDN used for LDAP bind |
 | `never_touch_these_attributes` | excluded from comparison and remediation. leave these alone. |
 
+## build
+
+```powershell
+cargo build --release
+```
+
+build script copies `wwwroot/` and `config.json` next to the binary automatically.
+
 ## commands
 
 ### `init` —> start here
@@ -163,17 +163,49 @@ captures a new baseline snapshot under a custom name. optionally init from a tem
 altered-state.exe new --name <name> [--description <desc>] [--template <path>] [--overwrite]
 ```
 
+### `delete` -> deletes a scenario
+
+it's okay, you can delete things too. if it's the current, active scenario it will activate the pre-defined default before deleting
+
+```powershell
+altered-state.exe delete --name [--force]
+```
+
+### `snapshot` -> take a picture, it lasts longer
+
+you made a few changes, you want to save them and see how it goes, use this
+
+```powershell
+altered-state.exe snapshot --scenario <scenario> --description <desc>
+```
+
+### `list` -> pretty prints all the scenarios & snapshots
+
+see all the hard work you've done, with or without the details
+
+```powershell
+altered-state.exe list [--detailed]
+```
+
 ### `activate` —> apply a scenario
 
 diffs current AD state against the scenario snapshot and executes whatever PowerShell is needed to get there.
 
 ```powershell
-altered-state.exe activate --scenario <name> [--state baseline|current|working|snapshot]
+altered-state.exe activate --scenario <name> [--state baseline|current|snapshot-#]
+```
+
+### `update` -> need to change something?
+
+right now you can change the description of the scenario and designate which file should be used for play
+
+```powershell
+altered-state.exe update --name <name> [--description <desc>] [--set-playable baseline|current|snapshot-#]
 ```
 
 ### `reset` —> something broke. run this
 
-restores the active scenario to its saved baseline state.
+restores the active scenario to its saved `playable_state` setting.
 
 ```powershell
 altered-state.exe reset --name <name>
@@ -203,6 +235,7 @@ scenarios/
   esc1/
     config.json       # scenario config: hooks, image, exclusions
     baseline.bin      # compressed LDAP snapshot
+    snapshot-1.bin    # additional saved snapshot
     activation.ps1    # runs on activation
     cleanup.ps1       # runs on cleanup
     esc1.jpg          # optional scenario image
@@ -229,7 +262,16 @@ scenarios/
       "continue_on_error": true
     }
   ],
-  "exclusions": []
+  "exclusions": [],
+  "snapshots": [
+    {
+      "name": "snapshot-1",
+      "description": "test1",
+      "created_at": "2026-05-25 19:31:41.438812700 UTC",
+      "file_path": "C:\\path\\to\\scenarios\\esc1\\snapshot-1.bin"
+    }
+  ],
+  "playable_state": "snapshot-1"
 }
 ```
 
@@ -247,6 +289,6 @@ altered-state.exe new --name esc1 --template templates/esc1/config.json
 # 3. back to baseline
 altered-state.exe reset --name default
 
-# 4. update a scenario, just overwrite it
-altered-state.exe new --name esc1 --template templates/esc1/config.json --overwrite
+# 4. update a scenario to change the playable_state
+altered-state.exe update --name esc1 --description "wow this is cool" --set-playable "snapshot-1"
 ```
